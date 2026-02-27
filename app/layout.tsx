@@ -10,9 +10,9 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "myOCW — Personalized MIT OpenCourseWare",
+  title: "myOCW",
   description:
-    "Track your progress through MIT OpenCourseWare courses and work through problem sets interactively.",
+    "OpenCourseWare, but yours. Not Affiliated with MIT by any means.",
 };
 
 export default function RootLayout({

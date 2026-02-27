@@ -72,6 +72,7 @@ export default function CoursePlayer({
   const [activeIndex, setActiveIndex] = useState(initialFlatIndex);
   const [completedVideos, setCompletedVideos] = useState<Set<number>>(new Set());
   const [loadingProgress, setLoadingProgress] = useState(true);
+  const [activePdf, setActivePdf] = useState<{ url: string; title: string } | null>(null);
 
   // Fetch progress on mount
   useEffect(() => {
@@ -104,6 +105,20 @@ export default function CoursePlayer({
   const pdfs = currentResources.filter((r) => r.pdf_path);
   const currentVideo = videos[0] ?? null;
   const isCurrentCompleted = currentVideo ? completedVideos.has(currentVideo.id) : false;
+  const firstPdf = pdfs[0];
+  const firstPdfUrl = firstPdf?.pdf_path ?? null;
+  const firstPdfTitle = firstPdf?.title ?? "PDF";
+
+  useEffect(() => {
+    if (!isLecture && firstPdfUrl) {
+      setActivePdf((prev) => {
+        if (prev?.url === firstPdfUrl) return prev;
+        return { url: firstPdfUrl, title: firstPdfTitle };
+      });
+      return;
+    }
+    setActivePdf((prev) => (prev === null ? prev : null));
+  }, [activeIndex, isLecture, firstPdfUrl, firstPdfTitle]);
 
   // Find prev/next lecture indices (skip non-lecture sections)
   const currentLecturePos = lectureSectionIndices.indexOf(activeIndex);
@@ -276,22 +291,59 @@ export default function CoursePlayer({
               {notes.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {notes.map((note, i) => (
-                    <a
+                    <button
                       key={note.id}
-                      href={note.pdf_path!}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      type="button"
+                      onClick={() =>
+                        note.pdf_path &&
+                        setActivePdf({
+                          url: note.pdf_path,
+                          title: note.title ?? `Lecture Notes ${i + 1}`,
+                        })
+                      }
                       className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
                     >
                       <svg className="h-4 w-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
                       {notes.length === 1 ? "Lecture Notes" : `Lecture Notes ${i + 1}`}
-                    </a>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
+
+            {activePdf && (
+              <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
+                  <span className="text-sm font-medium text-zinc-700">
+                    {activePdf.title}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={activePdf.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                    >
+                      Open in new tab
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setActivePdf(null)}
+                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+                <iframe
+                  src={activePdf.url}
+                  title={activePdf.title}
+                  className="h-[70vh] w-full"
+                />
+              </div>
+            )}
 
             {/* Prev / Next navigation (lectures only) */}
             <div className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-6">
@@ -345,20 +397,57 @@ export default function CoursePlayer({
                       {resource.title}
                     </span>
                     {resource.pdf_path && (
-                      <a
-                        href={resource.pdf_path}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() =>
+                          resource.pdf_path &&
+                          setActivePdf({
+                            url: resource.pdf_path,
+                            title: resource.title,
+                          })
+                        }
                         className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
                       >
-                        PDF
-                      </a>
+                        View PDF
+                      </button>
                     )}
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-zinc-500">No files available for this section.</p>
+            )}
+
+            {activePdf && (
+              <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
+                  <span className="text-sm font-medium text-zinc-700">
+                    {activePdf.title}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={activePdf.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                    >
+                      Open in new tab
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setActivePdf(null)}
+                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+                <iframe
+                  src={activePdf.url}
+                  title={activePdf.title}
+                  className="h-[70vh] w-full"
+                />
+              </div>
             )}
           </>
         )}

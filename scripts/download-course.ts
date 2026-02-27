@@ -8,6 +8,14 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 
+const STORAGE_BUCKET = "mit-ocw";
+const STORAGE_PREFIX = "courses";
+const SUPABASE_PUBLIC_URL = SUPABASE_URL.replace(/\/$/, "");
+
+function buildStoragePublicUrl(objectPath: string): string {
+  return `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${objectPath}`;
+}
+
 const TMP_DIR = "/tmp/myocw-download";
 
 // Extract YouTube ID from various URL formats
@@ -411,9 +419,8 @@ async function downloadCourse(slug: string) {
   const pdfTitleMap = extractPdfTitlesFromResources(contentRoot);
   console.log(`Found HTML titles for ${pdfTitleMap.size} PDFs`);
 
-  // Copy and rename PDFs to public/content/courses/<slug>/
-  const publicDir = path.join(process.cwd(), "public", "content", "courses", slug);
-  fs.mkdirSync(publicDir, { recursive: true });
+  // Upload and rename PDFs to Supabase Storage bucket
+  const pdfUrlByFilename = new Map<string, string>();
 
   const staticDir = path.join(contentRoot, "static_resources");
   let pdfCount = 0;
@@ -439,7 +446,22 @@ async function downloadCourse(slug: string) {
           newFilename = file; // keep original if no HTML title found
         }
         usedFilenames.add(newFilename);
-        fs.copyFileSync(path.join(staticDir, file), path.join(publicDir, newFilename));
+        const filePath = path.join(staticDir, file);
+        const objectPath = `${STORAGE_PREFIX}/${slug}/${newFilename}`;
+        const { error: uploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(objectPath, fs.readFileSync(filePath), {
+            contentType: "application/pdf",
+            cacheControl: "3600",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Error uploading PDF:", uploadError);
+          process.exit(1);
+        }
+
+        pdfUrlByFilename.set(newFilename, buildStoragePublicUrl(objectPath));
         pdfRenameMap.set(file, newFilename);
         pdfFiles.push(newFilename);
         pdfCount++;
@@ -449,7 +471,7 @@ async function downloadCourse(slug: string) {
       }
     }
   }
-  console.log(`Copied ${pdfCount} PDFs to public/content/courses/${slug}/`);
+  console.log(`Uploaded ${pdfCount} PDFs to storage bucket: ${STORAGE_BUCKET}/${STORAGE_PREFIX}/${slug}/`);
 
   // ── Parse sequential lectures ──
   // Strategy: check for a cached lectures.json first (from a previous run).
@@ -459,7 +481,9 @@ async function downloadCourse(slug: string) {
   console.log("Parsing lecture structure...");
 
   const lectures: LectureEntry[] = [];
-  const lecturesCachePath = path.join(publicDir, "lectures.json");
+  const cacheDir = path.join(TMP_DIR, "cache", slug);
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const lecturesCachePath = path.join(cacheDir, "lectures.json");
 
   if (fs.existsSync(lecturesCachePath)) {
     console.log("Using cached lectures.json");
@@ -703,7 +727,9 @@ async function downloadCourse(slug: string) {
             section_id: sectionId,
             title: pdfTitleByFilename.get(pdf) ?? pdf.replace(/\.pdf$/i, "").replace(/-/g, " "),
             resource_type: "lecture_notes",
-            pdf_path: `/content/courses/${slug}/${pdf}`,
+            pdf_path:
+              pdfUrlByFilename.get(pdf) ??
+              buildStoragePublicUrl(`${STORAGE_PREFIX}/${slug}/${pdf}`),
             video_url: null,
             youtube_id: null,
             archive_url: null,
@@ -723,7 +749,9 @@ async function downloadCourse(slug: string) {
           section_id: sectionId,
           title: pdfTitleByFilename.get(pdf) ?? pdf.replace(/\.pdf$/i, "").replace(/-/g, " "),
           resource_type: resourceType,
-          pdf_path: `/content/courses/${slug}/${pdf}`,
+          pdf_path:
+            pdfUrlByFilename.get(pdf) ??
+            buildStoragePublicUrl(`${STORAGE_PREFIX}/${slug}/${pdf}`),
           video_url: null,
           youtube_id: null,
           archive_url: null,
@@ -770,7 +798,7 @@ async function downloadCourse(slug: string) {
   console.log(`  Course: ${course.title}`);
   console.log(`  Lectures: ${lectures.length}`);
   console.log(`  Resources: ${resources.length}`);
-  console.log(`  PDFs copied: ${pdfCount}`);
+  console.log(`  PDFs uploaded: ${pdfCount}`);
 }
 
 // Main

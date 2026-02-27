@@ -1,8 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Course } from "@/lib/types/course";
+import type { CourseProgress } from "@/lib/queries/my-courses";
 
-export default function CourseCard({ course }: { course: Course }) {
+export default function CourseCard({
+  course,
+  progress,
+}: {
+  course: Course;
+  progress?: CourseProgress;
+}) {
   const department = course.departments?.[0]?.name ?? null;
 
   const levels = course.runs
@@ -61,6 +68,24 @@ export default function CourseCard({ course }: { course: Course }) {
                 .join(" · ")}
             </p>
           )}
+
+          {progress && progress.total > 0 && (() => {
+            const pct = Math.round((progress.completed / progress.total) * 100);
+            return (
+              <div className="mt-1 flex flex-col gap-1">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                  <div
+                    className="h-full rounded-full bg-[#750014] transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">
+                  {pct}% completed
+                  <span className="text-zinc-400"> · {progress.completed}/{progress.total} videos</span>
+                </p>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </Link>

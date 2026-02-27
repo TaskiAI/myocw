@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Course } from "@/lib/types/course";
 import type { CourseSection } from "@/lib/types/course-content";
 import type { Resource } from "@/lib/types/course-content";
+import { markCourseInteracted } from "@/lib/queries/course-activity";
 import CourseHeader from "./CourseHeader";
 import CoursePlayer from "./CoursePlayer";
 
@@ -31,6 +32,10 @@ export default function CoursePageContent({
 
   // Start in player mode if ?lecture= param is present
   const [playerMode, setPlayerMode] = useState(initialLecture !== undefined);
+
+  useEffect(() => {
+    void markCourseInteracted(course.id);
+  }, [course.id]);
 
   const handleContinueCourse = useCallback(() => {
     setPlayerMode(true);
