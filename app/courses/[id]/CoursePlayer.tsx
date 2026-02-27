@@ -2,13 +2,15 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import type { CourseSection } from "@/lib/types/course-content";
-import type { Resource } from "@/lib/types/course-content";
+import type { Resource, Problem } from "@/lib/types/course-content";
 import { getVideoProgress, markVideoCompleted } from "@/lib/queries/video-progress";
 import YouTubePlayer from "./YouTubePlayer";
+import ProblemSetView from "./ProblemSetView";
 
 interface Props {
   sections: CourseSection[];
   resources: Resource[];
+  problems: Problem[];
   courseSlug: string;
   courseId: number;
   initialLecture?: number;
@@ -19,6 +21,7 @@ interface Props {
 export default function CoursePlayer({
   sections,
   resources,
+  problems,
   courseSlug,
   courseId,
   initialLecture,
@@ -51,6 +54,16 @@ export default function CoursePlayer({
     return map;
   }, [resources]);
 
+  // Map resource_id → Problem[] (for problem set sections)
+  const problemsByResource = useMemo(() => {
+    const map = new Map<number, Problem[]>();
+    for (const p of problems) {
+      if (!map.has(p.resource_id)) map.set(p.resource_id, []);
+      map.get(p.resource_id)!.push(p);
+    }
+    return map;
+  }, [problems]);
+
   // Map section ID → video resource (for progress tracking)
   const videoBySection = useMemo(() => {
     const map = new Map<number, Resource>();
@@ -80,14 +93,18 @@ export default function CoursePlayer({
       setCompletedVideos(set);
       setLoadingProgress(false);
 
-      // If in player mode with no initialLecture, find first incomplete lecture
+      // If in player mode with no initialLecture, find first incomplete section
       if (isPlayerMode && initialLecture === undefined) {
-        const firstIncomplete = lectureSectionIndices.find((flatIdx) => {
-          const section = allSections[flatIdx];
-          const video = videoBySection.get(section.id);
-          return video && !set.has(video.id);
+        const firstIncomplete = allSections.findIndex((section) => {
+          if (section.section_type === "lecture") {
+            const video = videoBySection.get(section.id);
+            return video && !set.has(video.id);
+          }
+          // Non-lecture sections (problem sets, exams, etc.) — stop here
+          // since we don't track their completion yet
+          return true;
         });
-        if (firstIncomplete !== undefined) {
+        if (firstIncomplete !== -1) {
           setActiveIndex(firstIncomplete);
         }
       }
@@ -377,80 +394,104 @@ export default function CoursePlayer({
         )}
 
         {/* Non-lecture view (problem set / exam / recitation) */}
-        {!isLecture && currentSection && (
-          <>
-            <h2 className="mb-4 text-xl font-semibold text-zinc-900">
-              {currentSection.title}
-            </h2>
-            {pdfs.length > 0 ? (
-              <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
-                {pdfs.map((resource) => (
-                  <li key={resource.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className="shrink-0 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
-                      {resource.resource_type === "solution" ? "Solution" :
-                       resource.resource_type === "problem_set" ? "Assignment" :
-                       resource.resource_type === "exam" ? "Exam" :
-                       resource.resource_type === "recitation" ? "Recitation" :
-                       "File"}
+        {!isLecture && currentSection && (() => {
+          // Check if any resource in this section has parsed problems
+          const sectionProblems = currentResources.flatMap(
+            (r) => problemsByResource.get(r.id) ?? []
+          );
+          const hasProblems = sectionProblems.length > 0;
+
+          if (hasProblems) {
+            return (
+              <>
+                <h2 className="mb-4 text-xl font-semibold text-zinc-900">
+                  {currentSection.title}
+                </h2>
+                <ProblemSetView
+                  problems={sectionProblems}
+                  pdfResources={pdfs}
+                  courseId={courseId}
+                />
+              </>
+            );
+          }
+
+          // Fallback: original PDF list view
+          return (
+            <>
+              <h2 className="mb-4 text-xl font-semibold text-zinc-900">
+                {currentSection.title}
+              </h2>
+              {pdfs.length > 0 ? (
+                <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
+                  {pdfs.map((resource) => (
+                    <li key={resource.id} className="flex items-center gap-3 px-4 py-3">
+                      <span className="shrink-0 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+                        {resource.resource_type === "solution" ? "Solution" :
+                         resource.resource_type === "problem_set" ? "Assignment" :
+                         resource.resource_type === "exam" ? "Exam" :
+                         resource.resource_type === "recitation" ? "Recitation" :
+                         "File"}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-zinc-900">
+                        {resource.title}
+                      </span>
+                      {resource.pdf_path && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            resource.pdf_path &&
+                            setActivePdf({
+                              url: resource.pdf_path,
+                              title: resource.title,
+                            })
+                          }
+                          className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        >
+                          View PDF
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-zinc-500">No files available for this section.</p>
+              )}
+
+              {activePdf && (
+                <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
+                    <span className="text-sm font-medium text-zinc-700">
+                      {activePdf.title}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-zinc-900">
-                      {resource.title}
-                    </span>
-                    {resource.pdf_path && (
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={activePdf.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                      >
+                        Open in new tab
+                      </a>
                       <button
                         type="button"
-                        onClick={() =>
-                          resource.pdf_path &&
-                          setActivePdf({
-                            url: resource.pdf_path,
-                            title: resource.title,
-                          })
-                        }
-                        className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        onClick={() => setActivePdf(null)}
+                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
                       >
-                        View PDF
+                        Close
                       </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-zinc-500">No files available for this section.</p>
-            )}
-
-            {activePdf && (
-              <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
-                <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
-                  <span className="text-sm font-medium text-zinc-700">
-                    {activePdf.title}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={activePdf.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
-                    >
-                      Open in new tab
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setActivePdf(null)}
-                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
-                    >
-                      Close
-                    </button>
+                    </div>
                   </div>
+                  <iframe
+                    src={activePdf.url}
+                    title={activePdf.title}
+                    className="h-[70vh] w-full"
+                  />
                 </div>
-                <iframe
-                  src={activePdf.url}
-                  title={activePdf.title}
-                  className="h-[70vh] w-full"
-                />
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          );
+        })()}
 
         {/* Mobile content nav */}
         <div className="mt-8 lg:hidden">

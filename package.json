@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "ingest": "tsx --env-file=.env.local scripts/ingest-courses.ts",
-    "download-course": "tsx --env-file=.env.local scripts/download-course.ts"
+    "download-course": "tsx --env-file=.env.local scripts/download-course.ts",
+    "parse-problems": "tsx --env-file=.env.local scripts/parse-problems.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

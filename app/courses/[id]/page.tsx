@@ -3,6 +3,7 @@ import {
   getCourseById,
   getCourseSections,
   getCourseResources,
+  getCourseProblems,
 } from "@/lib/queries/course-content";
 import CoursePageContent from "./CoursePageContent";
 
@@ -19,9 +20,10 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
   const course = await getCourseById(courseId);
   if (!course) notFound();
 
-  const [sections, resources, resolvedSearchParams] = await Promise.all([
+  const [sections, resources, problems, resolvedSearchParams] = await Promise.all([
     getCourseSections(courseId),
     getCourseResources(courseId),
+    getCourseProblems(courseId),
     searchParams,
   ]);
 
@@ -42,6 +44,7 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
       course={course}
       sections={sections}
       resources={resources}
+      problems={problems}
       courseSlug={courseSlug}
       hasContent={hasContent}
       initialLecture={isNaN(initialLecture as number) ? undefined : initialLecture}

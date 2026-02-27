@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Course } from "@/lib/types/course";
-import type { CourseSection, Resource } from "@/lib/types/course-content";
+import type { CourseSection, Resource, Problem } from "@/lib/types/course-content";
 
 export async function getCourseById(id: number): Promise<Course | null> {
   const supabase = await createClient();
@@ -48,4 +48,20 @@ export async function getCourseResources(courseId: number): Promise<Resource[]> 
   }
 
   return (data as Resource[]) ?? [];
+}
+
+export async function getCourseProblems(courseId: number): Promise<Problem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("problems")
+    .select("*")
+    .eq("course_id", courseId)
+    .order("ordering", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching problems:", error);
+    return [];
+  }
+
+  return (data as Problem[]) ?? [];
 }

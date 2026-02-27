@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Course } from "@/lib/types/course";
-import type { CourseSection } from "@/lib/types/course-content";
+import type { CourseSection, Problem } from "@/lib/types/course-content";
 import type { Resource } from "@/lib/types/course-content";
 import { markCourseInteracted } from "@/lib/queries/course-activity";
 import CourseHeader from "./CourseHeader";
@@ -13,6 +13,7 @@ interface Props {
   course: Course;
   sections: CourseSection[];
   resources: Resource[];
+  problems: Problem[];
   courseSlug: string;
   hasContent: boolean;
   initialLecture?: number;
@@ -22,6 +23,7 @@ export default function CoursePageContent({
   course,
   sections,
   resources,
+  problems,
   courseSlug,
   hasContent,
   initialLecture,
@@ -88,6 +90,7 @@ export default function CoursePageContent({
         <CoursePlayer
           sections={sections}
           resources={resources}
+          problems={problems}
           courseSlug={courseSlug}
           courseId={course.id}
           initialLecture={initialLecture}
@@ -109,6 +112,7 @@ export default function CoursePageContent({
         <CoursePlayer
           sections={sections}
           resources={resources}
+          problems={problems}
           courseSlug={courseSlug}
           courseId={course.id}
           onLectureChange={handleLectureChange}

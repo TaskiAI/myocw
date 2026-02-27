@@ -16,7 +16,8 @@ OCW content is licensed under CC BY-NC-SA 4.0, so we can use it freely with attr
 - [x] **Step 2** — Download + extract course zips (syllabus, videos, problem sets)
 - [x] **Step 4** — Individual course pages with embedded content (`/courses/[id]`)
 - [x] **Step 5a** — Video progress tracking (auto-complete via YouTube IFrame API at 80% or video end)
-- [ ] **Step 3** — Problem set parsing (PDF → interactive questions)
+- [x] **Step 3a** — Problem set UI (schema, types, queries, ProblemSetView + ProblemCard components)
+- [ ] **Step 3b** — Problem set parsing script (PDF → structured problems via Claude API)
 - [ ] **Step 5b** — Remaining progress features (bookmarks, recently viewed, course-level progress bar)
 
 ---
@@ -49,6 +50,10 @@ OCW content is licensed under CC BY-NC-SA 4.0, so we can use it freely with attr
 - `app/components/CourseFilters.tsx` — department/topic/feature filters (client)
 - `app/components/Pagination.tsx` — page navigation (client)
 - `scripts/ingest_courses.py` — MIT Learn API ingestion script
+- `app/courses/[id]/ProblemSetView.tsx` — problem set container with nav strip, PDF reference
+- `app/courses/[id]/ProblemCard.tsx` — single problem card (answering → reviewing → graded phases)
+- `lib/queries/problem-progress.ts` — client-side problem attempt helpers (getProblemAttempts, submitProblemAttempt)
+- `scripts/schema-step3-problems.sql` — problems + user_problem_attempts table migration
 - `scripts/schema-step5-video-progress.sql` — user_video_progress table migration
 
 ### Course page UX (Khan Academy-style)
@@ -72,6 +77,12 @@ Two modes on `/courses/[id]`:
 - `user_video_progress` — per-user video completion tracking (user_id, resource_id, completed, completed_at)
   - RLS: users can only read/write their own rows
   - Unique constraint on (user_id, resource_id)
+- `problems` — parsed problem content (resource_id, course_id, problem_label, question_text, solution_text, ordering)
+  - Readable by all (public course content)
+- `user_problem_attempts` — per-user self-graded answers (user_id, problem_id, answer_text, self_grade, attempted_at)
+  - self_grade: `correct`, `partially_correct`, `incorrect`, `unsure`
+  - RLS: users can only read/write their own rows
+  - Unique constraint on (user_id, problem_id)
 
 ---
 
