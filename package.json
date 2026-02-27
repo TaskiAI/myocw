@@ -6,21 +6,29 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "ingest": "tsx --env-file=.env.local scripts/ingest-courses.ts",
+    "download-course": "tsx --env-file=.env.local scripts/download-course.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "adm-zip": "^0.5.16",
+    "cheerio": "^1.2.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4",
     "typescript": "^5"
   }
 }
