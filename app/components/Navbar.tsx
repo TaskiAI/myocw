@@ -64,6 +64,12 @@ export default function Navbar() {
               >
                 Curricula
               </Link>
+              <Link
+                href="/account"
+                className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900"
+              >
+                Account
+              </Link>
             </>
           )}
           {user ? (

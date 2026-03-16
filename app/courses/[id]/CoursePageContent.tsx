@@ -14,7 +14,7 @@ interface Props {
   sections: CourseSection[];
   resources: Resource[];
   problems: Problem[];
-  courseSlug: string;
+  canEditContent: boolean;
   hasContent: boolean;
   initialLecture?: number;
 }
@@ -24,13 +24,13 @@ export default function CoursePageContent({
   sections,
   resources,
   problems,
-  courseSlug,
+  canEditContent,
   hasContent,
   initialLecture,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const hasLectures = sections.some((s) => s.section_type === "lecture");
+  const hasSections = sections.length > 0;
 
   // Start in player mode if ?lecture= param is present
   const [playerMode, setPlayerMode] = useState(initialLecture !== undefined);
@@ -91,8 +91,8 @@ export default function CoursePageContent({
           sections={sections}
           resources={resources}
           problems={problems}
-          courseSlug={courseSlug}
           courseId={course.id}
+          canEditContent={canEditContent}
           initialLecture={initialLecture}
           onExitPlayer={handleExitPlayer}
           onLectureChange={handleLectureChange}
@@ -105,19 +105,9 @@ export default function CoursePageContent({
     <main className="mx-auto max-w-7xl px-6 py-10">
       <CourseHeader
         course={course}
-        showContinueButton={hasLectures}
+        showContinueButton={hasSections}
         onContinueCourse={handleContinueCourse}
       />
-      <div className="mt-8">
-        <CoursePlayer
-          sections={sections}
-          resources={resources}
-          problems={problems}
-          courseSlug={courseSlug}
-          courseId={course.id}
-          onLectureChange={handleLectureChange}
-        />
-      </div>
     </main>
   );
 }

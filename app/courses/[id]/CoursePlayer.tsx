@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { CourseSection } from "@/lib/types/course-content";
 import type { Resource, Problem } from "@/lib/types/course-content";
 import { getVideoProgress, markVideoCompleted } from "@/lib/queries/video-progress";
+import { getProblemAttempts } from "@/lib/queries/problem-progress";
+import { getCourseSidebarOrder, saveCourseSidebarOrder } from "@/lib/queries/course-sidebar-order";
+import {
+  updateCourseResourceTitle,
+  updateCourseSectionTitle,
+} from "@/lib/queries/problem-editor";
 import YouTubePlayer from "./YouTubePlayer";
 import ProblemSetView from "./ProblemSetView";
 
@@ -11,48 +17,179 @@ interface Props {
   sections: CourseSection[];
   resources: Resource[];
   problems: Problem[];
-  courseSlug: string;
   courseId: number;
+  canEditContent?: boolean;
   initialLecture?: number;
   onExitPlayer?: () => void;
   onLectureChange?: (index: number) => void;
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function isGenericDownloadedVideoSectionTitle(value: string): boolean {
+  const normalized = normalizeWhitespace(value).toLowerCase();
+  if (!normalized) return false;
+  if (normalized === "download file" || normalized === "download video") return true;
+  if (/^video\s+\d+(?:\.\d+)?\s*(?:kb|mb|gb)\b/i.test(normalized)) return true;
+  return false;
+}
+
+function sidebarSectionTitle(section: CourseSection, flatIndex: number, lectureSectionIndices: number[]): string {
+  const normalized = normalizeWhitespace(section.title).toLowerCase();
+  if (normalized !== "download file") return section.title;
+
+  if (section.section_type === "lecture") {
+    const lecturePos = lectureSectionIndices.indexOf(flatIndex);
+    if (lecturePos >= 0) return `Lecture ${lecturePos + 1}`;
+    return "Lecture";
+  }
+  if (section.section_type === "problem_set") return "Problem Set";
+  if (section.section_type === "exam") return "Exam";
+  if (section.section_type === "recitation") return "Recitation";
+  return "Resource";
+}
+
+function applyManualSectionOrder(sections: CourseSection[], sectionIds: number[]): CourseSection[] {
+  if (sectionIds.length === 0) return sections;
+
+  const byId = new Map<number, CourseSection>(sections.map((section) => [section.id, section]));
+  const ordered: CourseSection[] = [];
+  const seen = new Set<number>();
+
+  for (const id of sectionIds) {
+    const section = byId.get(id);
+    if (!section || seen.has(id)) continue;
+    ordered.push(section);
+    seen.add(id);
+  }
+
+  for (const section of sections) {
+    if (seen.has(section.id)) continue;
+    ordered.push(section);
+  }
+
+  return ordered;
+}
+
+function areSectionOrdersEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
 
 export default function CoursePlayer({
   sections,
   resources,
   problems,
-  courseSlug,
   courseId,
+  canEditContent = false,
   initialLecture,
   onExitPlayer,
   onLectureChange,
 }: Props) {
   const isPlayerMode = !!onExitPlayer;
+  const didAutoSelectFromProgress = useRef(false);
+  const [manualSectionOrderIds, setManualSectionOrderIds] = useState<number[]>([]);
+  const [savedSectionOrderIds, setSavedSectionOrderIds] = useState<number[]>([]);
+  const [loadedOrderCourseId, setLoadedOrderCourseId] = useState<number | null>(null);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [saveOrderMessage, setSaveOrderMessage] = useState<string | null>(null);
+  const [isSortingSidebar, setIsSortingSidebar] = useState(false);
+
+  const isOrderLoaded = loadedOrderCourseId === courseId;
+  const [editableSections, setEditableSections] = useState<CourseSection[]>(sections);
+  const [editableResources, setEditableResources] = useState<Resource[]>(resources);
+  const [draftSectionTitle, setDraftSectionTitle] = useState("");
+  const [draftResourceTitle, setDraftResourceTitle] = useState("");
+  const [isSavingTitles, setIsSavingTitles] = useState(false);
+  const [titleSaveMessage, setTitleSaveMessage] = useState<string | null>(null);
 
   // All sections in flat order (lectures + problem sets + exams interleaved)
   const allSections = useMemo(
-    () => [...sections].sort((a, b) => a.ordering - b.ordering),
-    [sections]
-  );
-
-  // Indices of sections that have videos (for prev/next navigation)
-  const lectureSectionIndices = useMemo(
-    () => allSections
-      .map((s, i) => (s.section_type === "lecture" ? i : -1))
-      .filter((i) => i !== -1),
-    [allSections]
+    () => [...editableSections].sort((a, b) => a.ordering - b.ordering),
+    [editableSections]
   );
 
   // Group resources by section ID
   const resourcesBySection = useMemo(() => {
     const map = new Map<number | null, Resource[]>();
-    for (const r of resources) {
+    for (const r of editableResources) {
       if (!map.has(r.section_id)) map.set(r.section_id, []);
       map.get(r.section_id)!.push(r);
     }
     return map;
-  }, [resources]);
+  }, [editableResources]);
+
+  // Remove duplicate embedded/download lecture entries from navigation.
+  const defaultVisibleSections = useMemo(
+    () =>
+      allSections.filter((section) => {
+        if (section.section_type !== "lecture") return true;
+        if (!isGenericDownloadedVideoSectionTitle(section.title)) return true;
+
+        const sectionResources = resourcesBySection.get(section.id) ?? [];
+        const videos = sectionResources.filter((r) => r.resource_type === "video");
+        if (videos.length === 0) return true;
+        return videos.some((video) => Boolean(video.youtube_id));
+      }),
+    [allSections, resourcesBySection]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getCourseSidebarOrder(courseId).then((sectionIds) => {
+      if (cancelled) return;
+      setManualSectionOrderIds(sectionIds);
+      setSavedSectionOrderIds(sectionIds);
+      setLoadedOrderCourseId(courseId);
+      setSaveOrderMessage(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
+  const setDraftSidebarOrder = useCallback((sectionIds: number[]) => {
+    setManualSectionOrderIds(sectionIds);
+    setSaveOrderMessage(null);
+  }, []);
+
+  const visibleSections = useMemo(
+    () => applyManualSectionOrder(defaultVisibleSections, manualSectionOrderIds),
+    [defaultVisibleSections, manualSectionOrderIds]
+  );
+
+  const currentVisibleOrderIds = useMemo(
+    () => visibleSections.map((section) => section.id),
+    [visibleSections]
+  );
+
+  const savedVisibleOrderIds = useMemo(
+    () =>
+      applyManualSectionOrder(defaultVisibleSections, savedSectionOrderIds).map(
+        (section) => section.id
+      ),
+    [defaultVisibleSections, savedSectionOrderIds]
+  );
+
+  const hasUnsavedSidebarChanges = useMemo(
+    () => !areSectionOrdersEqual(currentVisibleOrderIds, savedVisibleOrderIds),
+    [currentVisibleOrderIds, savedVisibleOrderIds]
+  );
+
+  // Indices of lecture sections in visible order (for prev/next navigation)
+  const lectureSectionIndices = useMemo(
+    () => visibleSections
+      .map((s, i) => (s.section_type === "lecture" ? i : -1))
+      .filter((i) => i !== -1),
+    [visibleSections]
+  );
 
   // Map resource_id → Problem[] (for problem set sections)
   const problemsByResource = useMemo(() => {
@@ -67,14 +204,31 @@ export default function CoursePlayer({
   // Map section ID → video resource (for progress tracking)
   const videoBySection = useMemo(() => {
     const map = new Map<number, Resource>();
-    for (const section of allSections) {
+    for (const section of visibleSections) {
       if (section.section_type !== "lecture") continue;
       const sectionResources = resourcesBySection.get(section.id) ?? [];
       const video = sectionResources.find((r) => r.resource_type === "video");
       if (video) map.set(section.id, video);
     }
     return map;
-  }, [allSections, resourcesBySection]);
+  }, [visibleSections, resourcesBySection]);
+
+  const problemIdsBySection = useMemo(() => {
+    const map = new Map<number, number[]>();
+
+    for (const section of visibleSections) {
+      const sectionResources = resourcesBySection.get(section.id) ?? [];
+      const problemIds = sectionResources.flatMap((resource) =>
+        (problemsByResource.get(resource.id) ?? []).map((problem) => problem.id)
+      );
+
+      if (problemIds.length > 0) {
+        map.set(section.id, problemIds);
+      }
+    }
+
+    return map;
+  }, [visibleSections, resourcesBySection, problemsByResource]);
 
   // Convert initialLecture (lecture-only index) to flat index
   const initialFlatIndex = useMemo(() => {
@@ -84,34 +238,68 @@ export default function CoursePlayer({
 
   const [activeIndex, setActiveIndex] = useState(initialFlatIndex);
   const [completedVideos, setCompletedVideos] = useState<Set<number>>(new Set());
+  const [attemptedProblemIds, setAttemptedProblemIds] = useState<Set<number>>(new Set());
   const [loadingProgress, setLoadingProgress] = useState(true);
-  const [activePdf, setActivePdf] = useState<{ url: string; title: string } | null>(null);
+  const [manualPdfSelection, setManualPdfSelection] = useState<{
+    sectionId: number;
+    url: string;
+    title: string;
+  } | null>(null);
+  const [dismissedAutoPdfSections, setDismissedAutoPdfSections] = useState<Set<number>>(new Set());
+
+  const isSectionCompleted = useCallback(
+    (
+      section: CourseSection,
+      videoSet = completedVideos,
+      attemptedIds = attemptedProblemIds
+    ) => {
+      if (section.section_type === "lecture") {
+        const video = videoBySection.get(section.id);
+        return video ? videoSet.has(video.id) : false;
+      }
+
+      const problemIds = problemIdsBySection.get(section.id) ?? [];
+      return problemIds.length > 0 && problemIds.every((problemId) => attemptedIds.has(problemId));
+    },
+    [attemptedProblemIds, completedVideos, problemIdsBySection, videoBySection]
+  );
+
+  useEffect(() => {
+    setEditableSections(sections);
+  }, [sections]);
+
+  useEffect(() => {
+    setEditableResources(resources);
+  }, [resources]);
+
+  useEffect(() => {
+    didAutoSelectFromProgress.current = false;
+    setTitleSaveMessage(null);
+  }, [courseId]);
 
   // Fetch progress on mount
   useEffect(() => {
-    getVideoProgress(courseId).then((set) => {
-      setCompletedVideos(set);
-      setLoadingProgress(false);
+    void Promise.all([getVideoProgress(courseId), getProblemAttempts(courseId)]).then(
+      ([videoSet, problemAttempts]) => {
+        const attemptedIds = new Set(problemAttempts.keys());
+        setCompletedVideos(videoSet);
+        setAttemptedProblemIds(attemptedIds);
+        setLoadingProgress(false);
 
-      // If in player mode with no initialLecture, find first incomplete section
-      if (isPlayerMode && initialLecture === undefined) {
-        const firstIncomplete = allSections.findIndex((section) => {
-          if (section.section_type === "lecture") {
-            const video = videoBySection.get(section.id);
-            return video && !set.has(video.id);
+        if (isPlayerMode && initialLecture === undefined && !didAutoSelectFromProgress.current) {
+          const firstIncomplete = visibleSections.findIndex(
+            (section) => !isSectionCompleted(section, videoSet, attemptedIds)
+          );
+          if (firstIncomplete !== -1) {
+            setActiveIndex(firstIncomplete);
+            didAutoSelectFromProgress.current = true;
           }
-          // Non-lecture sections (problem sets, exams, etc.) — stop here
-          // since we don't track their completion yet
-          return true;
-        });
-        if (firstIncomplete !== -1) {
-          setActiveIndex(firstIncomplete);
         }
       }
-    });
-  }, [courseId, isPlayerMode, initialLecture, allSections, lectureSectionIndices, videoBySection]);
+    );
+  }, [courseId, initialLecture, isPlayerMode, isSectionCompleted, visibleSections]);
 
-  const currentSection = allSections[activeIndex] ?? null;
+  const currentSection = visibleSections[activeIndex] ?? null;
   const currentResources = currentSection
     ? resourcesBySection.get(currentSection.id) ?? []
     : [];
@@ -121,21 +309,30 @@ export default function CoursePlayer({
   const notes = currentResources.filter((r) => r.resource_type === "lecture_notes");
   const pdfs = currentResources.filter((r) => r.pdf_path);
   const currentVideo = videos[0] ?? null;
+  const primaryEditableResource = isLecture
+    ? currentVideo
+    : currentResources.find((resource) =>
+        ["problem_set", "exam", "recitation"].includes(resource.resource_type)
+      ) ?? pdfs[0] ?? currentResources[0] ?? null;
   const isCurrentCompleted = currentVideo ? completedVideos.has(currentVideo.id) : false;
   const firstPdf = pdfs[0];
   const firstPdfUrl = firstPdf?.pdf_path ?? null;
   const firstPdfTitle = firstPdf?.title ?? "PDF";
 
-  useEffect(() => {
-    if (!isLecture && firstPdfUrl) {
-      setActivePdf((prev) => {
-        if (prev?.url === firstPdfUrl) return prev;
-        return { url: firstPdfUrl, title: firstPdfTitle };
-      });
-      return;
+  let activePdf: { url: string; title: string } | null = null;
+  if (currentSection) {
+    if (manualPdfSelection?.sectionId === currentSection.id) {
+      activePdf = {
+        url: manualPdfSelection.url,
+        title: manualPdfSelection.title,
+      };
+    } else if (!isLecture && firstPdfUrl && !dismissedAutoPdfSections.has(currentSection.id)) {
+      activePdf = {
+        url: firstPdfUrl,
+        title: firstPdfTitle,
+      };
     }
-    setActivePdf((prev) => (prev === null ? prev : null));
-  }, [activeIndex, isLecture, firstPdfUrl, firstPdfTitle]);
+  }
 
   // Find prev/next lecture indices (skip non-lecture sections)
   const currentLecturePos = lectureSectionIndices.indexOf(activeIndex);
@@ -146,13 +343,85 @@ export default function CoursePlayer({
     ? lectureSectionIndices[currentLecturePos + 1]
     : undefined;
 
-  const completedCount = lectureSectionIndices.filter((flatIdx) => {
-    const section = allSections[flatIdx];
-    const video = videoBySection.get(section.id);
-    return video && completedVideos.has(video.id);
-  }).length;
+  const completedCount = visibleSections.filter((section) => isSectionCompleted(section)).length;
+
+  useEffect(() => {
+    setDraftSectionTitle(currentSection?.title ?? "");
+  }, [currentSection?.id, currentSection?.title]);
+
+  useEffect(() => {
+    setDraftResourceTitle(primaryEditableResource?.title ?? "");
+  }, [primaryEditableResource?.id, primaryEditableResource?.title]);
+
+  async function handleSaveTitles() {
+    if (!canEditContent || !currentSection || isSavingTitles) return;
+
+    const nextSectionTitle = draftSectionTitle.trim();
+    const nextResourceTitle = draftResourceTitle.trim();
+    const sectionChanged = nextSectionTitle.length > 0 && nextSectionTitle !== currentSection.title;
+    const resourceChanged =
+      primaryEditableResource &&
+      nextResourceTitle.length > 0 &&
+      nextResourceTitle !== primaryEditableResource.title;
+
+    if (!sectionChanged && !resourceChanged) {
+      setTitleSaveMessage("No title changes to save.");
+      return;
+    }
+
+    setIsSavingTitles(true);
+    setTitleSaveMessage("Saving titles...");
+
+    if (sectionChanged) {
+      const savedSection = await updateCourseSectionTitle(currentSection.id, nextSectionTitle);
+      if (!savedSection) {
+        setIsSavingTitles(false);
+        setTitleSaveMessage("Could not save section title.");
+        return;
+      }
+
+      setEditableSections((currentItems) =>
+        currentItems.map((section) =>
+          section.id === savedSection.id ? { ...section, title: savedSection.title } : section
+        )
+      );
+    }
+
+    if (resourceChanged && primaryEditableResource) {
+      const savedResource = await updateCourseResourceTitle(
+        primaryEditableResource.id,
+        nextResourceTitle
+      );
+      if (!savedResource) {
+        setIsSavingTitles(false);
+        setTitleSaveMessage("Could not save resource title.");
+        return;
+      }
+
+      setEditableResources((currentItems) =>
+        currentItems.map((resource) =>
+          resource.id === savedResource.id ? { ...resource, title: savedResource.title } : resource
+        )
+      );
+      setManualPdfSelection((currentSelection) => {
+        if (!currentSelection || currentSelection.url !== primaryEditableResource.pdf_path) {
+          return currentSelection;
+        }
+
+        return {
+          ...currentSelection,
+          title: savedResource.title,
+        };
+      });
+    }
+
+    setIsSavingTitles(false);
+    setTitleSaveMessage("Saved titles.");
+  }
 
   function goTo(flatIndex: number) {
+    const section = visibleSections[flatIndex];
+    if (!section) return;
     setActiveIndex(flatIndex);
     // Report lecture index for URL param (only for lectures)
     const lecturePos = lectureSectionIndices.indexOf(flatIndex);
@@ -162,26 +431,115 @@ export default function CoursePlayer({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const handleVideoEnded = useCallback(async () => {
+  async function handleVideoEnded() {
     if (!currentVideo || completedVideos.has(currentVideo.id)) return;
     const success = await markVideoCompleted(currentVideo.id);
     if (success) {
-      setCompletedVideos((prev) => new Set(prev).add(currentVideo.id));
+      setCompletedVideos((prev) => {
+        if (prev.has(currentVideo.id)) return prev;
+        const next = new Set(prev);
+        next.add(currentVideo.id);
+        return next;
+      });
     }
-  }, [currentVideo, completedVideos]);
+  }
+
+  const selectPdf = useCallback((url: string, title: string) => {
+    if (!currentSection) return;
+
+    setManualPdfSelection({
+      sectionId: currentSection.id,
+      url,
+      title,
+    });
+
+    setDismissedAutoPdfSections((prev) => {
+      if (!prev.has(currentSection.id)) return prev;
+      const next = new Set(prev);
+      next.delete(currentSection.id);
+      return next;
+    });
+  }, [currentSection]);
+
+  const closeActivePdf = useCallback(() => {
+    if (!currentSection) return;
+
+    setManualPdfSelection((prev) => {
+      if (!prev || prev.sectionId !== currentSection.id) return prev;
+      return null;
+    });
+
+    if (isLecture) return;
+
+    setDismissedAutoPdfSections((prev) => {
+      if (prev.has(currentSection.id)) return prev;
+      const next = new Set(prev);
+      next.add(currentSection.id);
+      return next;
+    });
+  }, [currentSection, isLecture]);
+
+  const moveSidebarSection = useCallback(
+    (sectionId: number, direction: -1 | 1) => {
+      const currentIndex = visibleSections.findIndex((section) => section.id === sectionId);
+      if (currentIndex === -1) return;
+
+      const targetIndex = currentIndex + direction;
+      if (targetIndex < 0 || targetIndex >= visibleSections.length) return;
+
+      const nextOrderIds = visibleSections.map((section) => section.id);
+      const [moved] = nextOrderIds.splice(currentIndex, 1);
+      nextOrderIds.splice(targetIndex, 0, moved);
+
+      const activeSectionId = visibleSections[activeIndex]?.id;
+      if (activeSectionId) {
+        const nextActiveIndex = nextOrderIds.indexOf(activeSectionId);
+        if (nextActiveIndex !== -1) {
+          setActiveIndex(nextActiveIndex);
+        }
+      }
+
+      setDraftSidebarOrder(nextOrderIds);
+    },
+    [activeIndex, setDraftSidebarOrder, visibleSections]
+  );
+
+  function resetSidebarOrder() {
+    setDraftSidebarOrder([]);
+  }
+
+  async function handleSaveSidebarOrder() {
+    if (isSavingOrder) return;
+    setIsSavingOrder(true);
+    setSaveOrderMessage(null);
+
+    const orderToSave = visibleSections.map((section) => section.id);
+    const result = await saveCourseSidebarOrder(courseId, orderToSave);
+
+    setIsSavingOrder(false);
+    if (!result.ok) {
+      setSaveOrderMessage(result.message);
+      return;
+    }
+
+    setSavedSectionOrderIds(orderToSave);
+    setIsSortingSidebar(false);
+    setSaveOrderMessage("Saved shared sidebar order.");
+  }
 
   // Icon for section type in sidebar
   function sectionIcon(section: CourseSection, flatIndex: number) {
+    const isCompleted = isSectionCompleted(section);
+
+    if (isCompleted) {
+      return (
+        <svg className="h-4 w-4 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      );
+    }
+
     if (section.section_type === "lecture") {
-      const video = videoBySection.get(section.id);
-      const isCompleted = video ? completedVideos.has(video.id) : false;
-      if (isCompleted) {
-        return (
-          <svg className="h-4 w-4 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        );
-      }
       const lecturePos = lectureSectionIndices.indexOf(flatIndex);
       return (
         <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-zinc-300 text-[10px] text-zinc-400">
@@ -189,7 +547,7 @@ export default function CoursePlayer({
         </span>
       );
     }
-    // Non-lecture icon (document)
+
     return (
       <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
@@ -213,32 +571,108 @@ export default function CoursePlayer({
         </button>
       )}
 
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-          Content
-        </p>
-        {!loadingProgress && completedCount > 0 && (
-          <span className="text-xs text-zinc-400">
-            {completedCount}/{lectureSectionIndices.length}
-          </span>
-        )}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Content</p>
+        <div className="flex items-center gap-2">
+          {!loadingProgress && visibleSections.length > 0 && (
+            <span className="text-xs text-zinc-400">
+              {completedCount}/{visibleSections.length}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsSortingSidebar((prev) => !prev)}
+            disabled={!isOrderLoaded || isSavingOrder}
+            className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isSortingSidebar ? "Done" : "Sort"}
+          </button>
+          {isSortingSidebar && (
+            <button
+              type="button"
+              onClick={() => {
+                void handleSaveSidebarOrder();
+              }}
+              disabled={!isOrderLoaded || !hasUnsavedSidebarChanges || isSavingOrder}
+              className="rounded bg-[#750014] px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#5a0010] disabled:pointer-events-none disabled:opacity-50"
+            >
+              {isSavingOrder ? "Saving..." : "Save"}
+            </button>
+          )}
+          {isSortingSidebar && (
+            <button
+              type="button"
+              onClick={resetSidebarOrder}
+              disabled={isSavingOrder}
+              className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+            >
+              Reset
+            </button>
+          )}
+        </div>
       </div>
 
-      {allSections.map((section, i) => {
+      {!isOrderLoaded && (
+        <p className="mb-2 px-3 text-xs text-zinc-500">
+          Loading shared sidebar order...
+        </p>
+      )}
+
+      {saveOrderMessage && (
+        <p className="mb-2 px-3 text-xs text-zinc-500">
+          {saveOrderMessage}
+        </p>
+      )}
+
+      {isSortingSidebar && (
+        <p className="mb-2 px-3 text-xs text-zinc-500">
+          Use arrows to move items up or down.
+        </p>
+      )}
+
+      {visibleSections.map((section, i) => {
         const isActive = activeIndex === i;
+        const displayTitle = sidebarSectionTitle(section, i, lectureSectionIndices);
         return (
-          <button
-            key={section.id}
-            onClick={() => goTo(i)}
-            className={`flex items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors ${
-              isActive
-                ? "bg-[#750014]/10 font-medium text-[#750014]"
-                : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-            }`}
-          >
-            {sectionIcon(section, i)}
-            <span className="min-w-0 truncate">{section.title}</span>
-          </button>
+          <div key={section.id} className="flex items-center gap-1">
+            <button
+              onClick={() => goTo(i)}
+              className={`flex min-w-0 flex-1 items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors ${
+                isActive
+                  ? "bg-[#750014]/10 font-medium text-[#750014]"
+                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              {sectionIcon(section, i)}
+              <span className="min-w-0 truncate">{displayTitle}</span>
+            </button>
+            {isSortingSidebar && (
+              <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  aria-label={`Move ${displayTitle} up`}
+                  onClick={() => moveSidebarSection(section.id, -1)}
+                  disabled={i === 0}
+                  className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move ${displayTitle} down`}
+                  onClick={() => moveSidebarSection(section.id, 1)}
+                  disabled={i === visibleSections.length - 1}
+                  className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
         );
       })}
     </nav>
@@ -258,6 +692,61 @@ export default function CoursePlayer({
 
       {/* Main content */}
       <div className="min-w-0 flex-1">
+        {canEditContent && currentSection && (
+          <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#750014]">
+                  Dev editing
+                </p>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Rename the current section and its primary content title inline.
+                </p>
+              </div>
+              {titleSaveMessage && (
+                <p className="text-sm text-zinc-500">{titleSaveMessage}</p>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-zinc-700">Section title</span>
+                <input
+                  value={draftSectionTitle}
+                  onChange={(event) => setDraftSectionTitle(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-zinc-700">
+                  {isLecture ? "Video title" : "Problem set file title"}
+                </span>
+                <input
+                  value={draftResourceTitle}
+                  onChange={(event) => setDraftResourceTitle(event.target.value)}
+                  disabled={!primaryEditableResource}
+                  placeholder={primaryEditableResource ? undefined : "No editable resource title here"}
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSaveTitles();
+                }}
+                disabled={isSavingTitles}
+                className="rounded-lg bg-[#750014] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5a0010] disabled:opacity-60"
+              >
+                {isSavingTitles ? "Saving..." : "Save titles"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Lecture view (has video) */}
         {isLecture && currentSection && (
           <>
@@ -313,10 +802,10 @@ export default function CoursePlayer({
                       type="button"
                       onClick={() =>
                         note.pdf_path &&
-                        setActivePdf({
-                          url: note.pdf_path,
-                          title: note.title ?? `Lecture Notes ${i + 1}`,
-                        })
+                        selectPdf(
+                          note.pdf_path,
+                          note.title ?? `Lecture Notes ${i + 1}`
+                        )
                       }
                       className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
                     >
@@ -347,7 +836,7 @@ export default function CoursePlayer({
                     </a>
                     <button
                       type="button"
-                      onClick={() => setActivePdf(null)}
+                      onClick={closeActivePdf}
                       className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
                     >
                       Close
@@ -400,8 +889,15 @@ export default function CoursePlayer({
             (r) => problemsByResource.get(r.id) ?? []
           );
           const hasProblems = sectionProblems.length > 0;
+          const defaultProblemResource =
+            currentResources.find((resource) =>
+              ["problem_set", "exam", "recitation"].includes(resource.resource_type)
+            ) ?? currentResources[0] ?? null;
+          const supportsProblemEditing =
+            ["problem_set", "exam", "recitation"].includes(currentSection.section_type) &&
+            defaultProblemResource !== null;
 
-          if (hasProblems) {
+          if (hasProblems || (canEditContent && supportsProblemEditing)) {
             return (
               <>
                 <h2 className="mb-4 text-xl font-semibold text-zinc-900">
@@ -411,6 +907,16 @@ export default function CoursePlayer({
                   problems={sectionProblems}
                   pdfResources={pdfs}
                   courseId={courseId}
+                  canEdit={canEditContent}
+                  defaultProblemResourceId={defaultProblemResource?.id ?? null}
+                  onProblemAttempted={(problemId) => {
+                    setAttemptedProblemIds((currentIds) => {
+                      if (currentIds.has(problemId)) return currentIds;
+                      const nextIds = new Set(currentIds);
+                      nextIds.add(problemId);
+                      return nextIds;
+                    });
+                  }}
                 />
               </>
             );
@@ -441,10 +947,7 @@ export default function CoursePlayer({
                           type="button"
                           onClick={() =>
                             resource.pdf_path &&
-                            setActivePdf({
-                              url: resource.pdf_path,
-                              title: resource.title,
-                            })
+                            selectPdf(resource.pdf_path, resource.title)
                           }
                           className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
                         >
@@ -475,7 +978,7 @@ export default function CoursePlayer({
                       </a>
                       <button
                         type="button"
-                        onClick={() => setActivePdf(null)}
+                        onClick={closeActivePdf}
                         className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
                       >
                         Close
@@ -499,7 +1002,7 @@ export default function CoursePlayer({
             All Content
           </p>
           <div className="flex flex-col gap-1">
-            {allSections.map((section, i) => (
+            {visibleSections.map((section, i) => (
               <button
                 key={section.id}
                 onClick={() => goTo(i)}
@@ -510,7 +1013,9 @@ export default function CoursePlayer({
                 }`}
               >
                 {sectionIcon(section, i)}
-                <span className="min-w-0 truncate">{section.title}</span>
+                <span className="min-w-0 truncate">
+                  {sidebarSectionTitle(section, i, lectureSectionIndices)}
+                </span>
               </button>
             ))}
           </div>

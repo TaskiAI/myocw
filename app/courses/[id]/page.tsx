@@ -5,6 +5,7 @@ import {
   getCourseResources,
   getCourseProblems,
 } from "@/lib/queries/course-content";
+import { getDevEditorAccess } from "@/lib/queries/user-pset-drafts-server";
 import CoursePageContent from "./CoursePageContent";
 
 interface PageProps {
@@ -20,17 +21,13 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
   const course = await getCourseById(courseId);
   if (!course) notFound();
 
-  const [sections, resources, problems, resolvedSearchParams] = await Promise.all([
+  const [sections, resources, problems, resolvedSearchParams, devEditorAccess] = await Promise.all([
     getCourseSections(courseId),
     getCourseResources(courseId),
     getCourseProblems(courseId),
     searchParams,
+    getDevEditorAccess(),
   ]);
-
-  // Extract slug from course URL for PDF paths
-  const courseSlug = course.url
-    ? new URL(course.url).pathname.split("/").filter(Boolean).pop() ?? ""
-    : "";
 
   const hasContent = course.content_downloaded && sections.length > 0;
 
@@ -45,7 +42,7 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
       sections={sections}
       resources={resources}
       problems={problems}
-      courseSlug={courseSlug}
+      canEditContent={devEditorAccess.canEdit}
       hasContent={hasContent}
       initialLecture={isNaN(initialLecture as number) ? undefined : initialLecture}
     />

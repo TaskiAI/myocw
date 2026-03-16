@@ -11,37 +11,194 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 const STORAGE_BUCKET = "mit-ocw";
 const STORAGE_PREFIX = "courses";
 const SUPABASE_PUBLIC_URL = SUPABASE_URL.replace(/\/$/, "");
+const TMP_DIR = "/tmp/myocw-download";
+
+type SectionType = "lecture" | "problem_set" | "exam" | "recitation" | "other";
+type NonVideoResourceType = "problem_set" | "exam" | "solution" | "recitation" | "lecture_notes" | "other";
+type ResourceType = "video" | NonVideoResourceType;
+type CheerioTarget = Parameters<cheerio.CheerioAPI>[0];
+
+interface CrawledPage {
+  relativePath: string;
+  absolutePath: string;
+  title: string;
+  order: number;
+  sourcePriority: number;
+}
+
+interface ResourceOccurrence {
+  resourceId: string;
+  linkText: string;
+  pagePath: string;
+  pageOrder: number;
+  linkOrder: number;
+  sourcePriority: number;
+  weekHint: number | null;
+  numberHint: number | null;
+  inferredResourceType: NonVideoResourceType;
+  rowHeader: string | null;
+  columnHeader: string | null;
+}
+
+interface LectureEntry {
+  title: string;
+  slug: string;
+  resourceId: string | null;
+  youtubeId: string | null;
+  archiveUrl: string | null;
+  lectureNumber: number | null;
+  sourcePriority: number;
+  pageOrder: number;
+  linkOrder: number;
+}
+
+interface RawResourceMetadata {
+  id: string;
+  title: string;
+  filePath: string | null;
+  originalFilename: string | null;
+  inferredResourceType: NonVideoResourceType;
+  sectionTypeHint: SectionType;
+  numberHint: number | null;
+}
+
+interface VerifiedResource {
+  id: string;
+  title: string;
+  uploadedFilename: string;
+  pdfUrl: string;
+  resourceType: NonVideoResourceType;
+  sectionType: SectionType;
+  numberHint: number | null;
+  weekHint: number | null;
+  sourcePriority: number;
+  pageOrder: number;
+  linkOrder: number;
+}
+
+function isTranscriptArtifact(rawTitle: string, originalFilename: string | null): boolean {
+  const title = rawTitle.toLowerCase().trim();
+  const filename = (originalFilename ?? "").toLowerCase().trim();
+
+  if (title === "3play pdf file") return true;
+  if (title.includes("transcript")) return true;
+  if (filename.includes("transcript")) return true;
+
+  return false;
+}
+
+interface PreparedResource {
+  title: string;
+  resourceType: ResourceType;
+  pdfPath: string | null;
+  videoUrl: string | null;
+  youtubeId: string | null;
+  archiveUrl: string | null;
+}
+
+interface PreparedSection {
+  key: string;
+  title: string;
+  slugBase: string;
+  sectionType: SectionType;
+  resources: PreparedResource[];
+  weekHint: number | null;
+  sourcePriority: number;
+  pageOrder: number;
+  linkOrder: number;
+  orderSeed: number;
+}
+
+interface UploadResult {
+  uploadedPdfCount: number;
+  pdfUrlByFilename: Map<string, string>;
+  pdfRenameMap: Map<string, string>;
+}
 
 function buildStoragePublicUrl(objectPath: string): string {
   return `${SUPABASE_PUBLIC_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${objectPath}`;
 }
 
-const TMP_DIR = "/tmp/myocw-download";
+function toPosixPath(p: string): string {
+  return p.split(path.sep).join(path.posix.sep);
+}
 
-// Extract YouTube ID from various URL formats
-function extractYouTubeId(url: string): string | null {
-  const patterns = [
-    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
-  ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function isBlockedSidebarTitle(value: string): boolean {
+  return normalizeWhitespace(value).toLowerCase() === "download file";
+}
+
+function stripDownloadArtifacts(value: string): string {
+  const cleaned = value
+    .replace(/\(\s*download\s+(?:file|video)\s*\)/gi, " ")
+    .replace(/\[\s*download\s+(?:file|video)\s*\]/gi, " ")
+    .replace(/\s*-\s*download\s+(?:file|video)\b/gi, " ")
+    .replace(/\bdownload\s+(?:file|video)\b/gi, " ")
+    .replace(/\(\s*\)/g, " ");
+
+  return normalizeWhitespace(cleaned);
+}
+
+function isGenericDownloadLabel(value: string): boolean {
+  const normalized = normalizeWhitespace(value).toLowerCase();
+  if (!normalized) return true;
+  if (normalized === "download" || normalized === "file" || normalized === "video") return true;
+  if (/^download(\s+(file|video|mp4))?$/.test(normalized)) return true;
+  return false;
+}
+
+function deriveTitleFromMediaUrl(url: string): string | null {
+  let filename = "";
+  try {
+    const parsed = new URL(url);
+    filename = decodeURIComponent(parsed.pathname.split("/").pop() ?? "");
+  } catch {
+    filename = decodeURIComponent(url.split("/").pop() ?? "");
   }
+
+  const stem = filename.replace(/\.[a-z0-9]+$/i, "");
+  if (!stem) return null;
+
+  const taggedMatch = (tags: string): RegExpMatchArray | null =>
+    stem.match(new RegExp(`(?:^|[^a-z])(?:${tags})[\\s._-]*0*(\\d{1,3})([a-z])?`, "i"));
+
+  const lectureMatch = taggedMatch("lec|lecture|l");
+  if (lectureMatch) {
+    const suffix = lectureMatch[2] ? lectureMatch[2].toUpperCase() : "";
+    return `Lecture ${lectureMatch[1]}${suffix}`;
+  }
+
+  const recitationMatch = taggedMatch("rec|recitation");
+  if (recitationMatch) {
+    const suffix = recitationMatch[2] ? recitationMatch[2].toUpperCase() : "";
+    return `Recitation ${recitationMatch[1]}${suffix}`;
+  }
+
+  const sessionMatch = taggedMatch("ses|session");
+  if (sessionMatch) {
+    const suffix = sessionMatch[2] ? sessionMatch[2].toUpperCase() : "";
+    return `Session ${sessionMatch[1]}${suffix}`;
+  }
+
+  const trackMatch = taggedMatch("track");
+  if (trackMatch) {
+    const suffix = trackMatch[2] ? trackMatch[2].toUpperCase() : "";
+    return `Track ${trackMatch[1]}${suffix}`;
+  }
+
+  const episodeMatch = taggedMatch("ep|episode");
+  if (episodeMatch) return `Episode ${episodeMatch[1]}`;
+
   return null;
 }
 
-// Extract archive.org video URL
-function extractArchiveUrl(html: string): string | null {
-  const match = html.match(/https?:\/\/archive\.org\/download\/[^\s"'<>]+\.mp4/);
-  return match ? match[0] : null;
-}
-
-// Find files recursively matching a predicate
 function findFiles(dir: string, predicate: (filePath: string) => boolean): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
+
   const items = fs.readdirSync(dir, { withFileTypes: true });
   for (const item of items) {
     const fullPath = path.join(dir, item.name);
@@ -51,637 +208,1359 @@ function findFiles(dir: string, predicate: (filePath: string) => boolean): strin
       results.push(fullPath);
     }
   }
+
   return results;
 }
 
-// Extract lecture number from a title like "Lecture 1: Algorithms and Computation"
-function extractLectureNumber(title: string): number | null {
-  const match = title.match(/lecture\s+(\d+)/i);
-  return match ? parseInt(match[1], 10) : null;
+function extractYouTubeId(value: string): string | null {
+  const patterns = [
+    /img\.youtube\.com\/vi\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = value.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
 }
 
-interface LectureEntry {
-  title: string;
-  slug: string;
-  youtubeId: string | null;
-  archiveUrl: string | null;
-  lectureNumber: number | null;
+function extractArchiveUrl(html: string): string | null {
+  const match = html.match(/https?:\/\/archive\.org\/download\/[^\s"'<>]+\.mp4/);
+  return match ? match[0] : null;
 }
 
-interface PdfEntry {
-  filename: string;
-  title: string;
-  guessedType: "problem_set" | "exam" | "solution" | "recitation" | "lecture_notes" | "other";
+function extractLectureNumber(text: string): number | null {
+  const match = text.match(/lecture\s*#?\s*0*(\d+)/i);
+  if (!match) return null;
+
+  const parsed = parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-interface OrderedItem {
-  type: "lecture" | "problem_set" | "exam" | "recitation" | "other";
-  title: string;
-  /** index into the lectures array (for type=lecture) */
-  lectureIndex?: number;
-  /** PDF filenames (for non-lecture types) */
-  pdfFilenames?: string[];
+function extractWeekNumber(text: string): number | null {
+  const weekMatch = text.match(/\bweek\s*#?\s*0*(\d{1,2})\b/i);
+  if (weekMatch) {
+    const parsed = parseInt(weekMatch[1], 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  const moduleMatch = text.match(/\bmodule\s*#?\s*0*(\d{1,2})\b/i);
+  if (moduleMatch) {
+    const parsed = parseInt(moduleMatch[1], 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  const lectureMatch = text.match(/\blecture\b\s*:?\s*#?\s*0*(\d{1,3})\b/i);
+  if (lectureMatch) {
+    const parsed = parseInt(lectureMatch[1], 10);
+    if (Number.isFinite(parsed) && parsed <= 150) return parsed;
+  }
+
+  return null;
 }
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
-// Extract meaningful text content from HTML pages in the zip for LLM context
-function extractHtmlPagesContext(contentRoot: string): string {
-  const pagesDir = path.join(contentRoot, "pages");
-  if (!fs.existsSync(pagesDir)) {
-    console.log("No pages/ directory found in zip");
-    return "";
+function extractNumberHint(text: string): number | null {
+  const pattern = /\b(?:lecture|lec|week|problem\s*set|pset|assignment|homework|quiz|exam|midterm|final|recitation|session)\s*#?\s*0*(\d{1,3})\b/i;
+  const match = text.match(pattern);
+  if (match) {
+    const parsed = parseInt(match[1], 10);
+    if (Number.isFinite(parsed) && parsed <= 150) return parsed;
   }
 
-  const htmlFiles = findFiles(pagesDir, (fp) => fp.endsWith(".html"));
-  if (htmlFiles.length === 0) return "";
-
-  // Also grab nav links from index.html to understand course structure
-  const indexPath = path.join(contentRoot, "index.html");
-  let navContext = "";
-  if (fs.existsSync(indexPath)) {
-    const indexHtml = fs.readFileSync(indexPath, "utf-8");
-    const $index = cheerio.load(indexHtml);
-    const navLinks: string[] = [];
-    $index("nav a, .course-nav a, #course-nav a, [role=navigation] a").each((_, el) => {
-      const text = $index(el).text().trim();
-      if (text) navLinks.push(text);
-    });
-    if (navLinks.length > 0) {
-      navContext = `=== COURSE NAVIGATION ===\n${navLinks.join("\n")}\n\n`;
-    }
+  const leading = text.match(/^\s*0*(\d{1,3})\b/);
+  if (leading) {
+    const parsed = parseInt(leading[1], 10);
+    if (Number.isFinite(parsed) && parsed <= 150) return parsed;
   }
 
-  // Priority pages — these contain the most useful ordering information
-  const priorityPatterns = ["calendar", "syllabus", "assignments", "resource-index", "readings", "schedule"];
-
-  // Sort: priority pages first, then alphabetical
-  const getPriority = (fp: string) => {
-    const lower = fp.toLowerCase();
-    const idx = priorityPatterns.findIndex((p) => lower.includes(p));
-    return idx >= 0 ? idx : priorityPatterns.length;
-  };
-  htmlFiles.sort((a, b) => getPriority(a) - getPriority(b) || a.localeCompare(b));
-
-  const sections: string[] = [];
-  let totalLength = 0;
-  const MAX_CONTEXT_CHARS = 80_000; // Keep context reasonable for the LLM
-
-  for (const htmlFile of htmlFiles) {
-    if (totalLength >= MAX_CONTEXT_CHARS) break;
-
-    const html = fs.readFileSync(htmlFile, "utf-8");
-    const $ = cheerio.load(html);
-
-    // Remove boilerplate elements
-    $("script, style, nav, header, footer, .course-nav, #course-nav, noscript, link, meta").remove();
-
-    // Try to extract from main content area, fall back to body
-    let text = "";
-    const mainSelectors = ["main", "article", "#course-content", ".course-content", "#main-content", ".main-content"];
-    for (const sel of mainSelectors) {
-      const el = $(sel);
-      if (el.length) {
-        text = el.text();
-        break;
-      }
-    }
-    if (!text) {
-      text = $("body").text();
-    }
-
-    // Clean up whitespace: collapse runs of whitespace, trim lines
-    text = text
-      .split("\n")
-      .map((line) => line.replace(/\s+/g, " ").trim())
-      .filter((line) => line.length > 0)
-      .join("\n");
-
-    if (text.length < 20) continue; // Skip near-empty pages
-
-    // Derive a label from the file path
-    const relative = path.relative(pagesDir, htmlFile);
-    const label = relative.replace(/\.html$/, "").replace(/\//g, " > ").toUpperCase();
-
-    const section = `=== ${label} ===\n${text}`;
-
-    // Truncate individual pages if very long
-    const truncated = section.length > 15_000 ? section.slice(0, 15_000) + "\n[... truncated]" : section;
-    sections.push(truncated);
-    totalLength += truncated.length;
-  }
-
-  console.log(`Extracted text from ${sections.length} HTML pages (${(totalLength / 1024).toFixed(0)} KB context)`);
-  return navContext + sections.join("\n\n");
+  return null;
 }
 
-async function orderCourseContent(
-  courseTitle: string,
-  lectures: LectureEntry[],
-  pdfEntries: PdfEntry[],
-  htmlContext: string,
-): Promise<OrderedItem[]> {
-  if (!OPENROUTER_API_KEY) {
-    console.warn("OPENROUTER_API_KEY not set — falling back to lectures-first ordering");
-    return fallbackOrdering(lectures, pdfEntries);
-  }
-
-  const hasHtmlContext = htmlContext.length > 0;
-
-  const prompt = `You are building a course sidebar for an MIT OpenCourseWare class. The sidebar must show a SINGLE INTERLEAVED list — lectures mixed with problem sets, recitations, and exams in the order a student encounters them during the semester.
-
-Course: "${courseTitle}"
-${hasHtmlContext ? `
-## Course pages (from the OCW zip archive)
-
-These are the AUTHORITATIVE source for ordering. The calendar/syllabus pages explicitly say which lectures come before which problem sets. Use them.
-
-${htmlContext}
-
----
-` : ""}
-## Lectures
-${lectures.map((l, i) => `  [L${i}] ${l.title}`).join("\n")}
-
-## PDF files in the archive
-${pdfEntries.map((p) => `  [${p.guessedType}] ${p.filename} — "${p.title}"`).join("\n")}
-
-## Task
-
-Produce a flat JSON array that interleaves lectures with problem sets, recitations, and exams in CHRONOLOGICAL semester order.${hasHtmlContext ? " The calendar/syllabus pages above are your primary source — they tell you exactly which problem set is due after which lectures." : ""}
-
-CRITICAL RULES:
-1. INTERLEAVE. Do NOT list all lectures first then dump PDFs at the end. A recitation with the same number as a lecture goes RIGHT AFTER that lecture. A problem set goes after the last lecture it covers. Example: Lecture 1, Recitation 1, Lecture 2, Recitation 2, Problem Set 1, Lecture 3, Recitation 3, Lecture 4, Recitation 4, Problem Set 2, ...
-2. Every lecture [L0..L${lectures.length - 1}] must appear exactly once.
-3. Skip "lecture_notes" PDFs entirely — they auto-attach to their lecture.
-4. Group a solution PDF with its problem set (both filenames in one item's pdfFilenames array), not as a separate item.
-5. Give non-lecture items CLEAN human-readable titles like "Problem Set 1", "Quiz 1", "Recitation 3" — NOT the raw filename.
-6. If a PDF doesn't clearly belong anywhere, place it near the most relevant lecture, do NOT put it at the end.
-7. Output ONLY a JSON array. No markdown fences, no commentary.
-8. Some problem sets will be numbered 0 to signify that they are pre-assessments. Place Titles with 0 in them first out of anything.
-
-## Output schema
-
-Each element:
-{ "type": "lecture" | "problem_set" | "exam" | "recitation" | "other", "title": "<clean display title>", "lectureIndex": <L-number for lectures, null for others>, "pdfFilenames": ["<exact filename(s)>"] }
-
-For lectures: lectureIndex = the L-number, pdfFilenames = [].
-For non-lectures: lectureIndex = null, pdfFilenames = the exact filename(s) from the PDF list above.`;
-
-  console.log(`Asking LLM to order course content (${hasHtmlContext ? "with" : "without"} HTML context)...`);
-
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`OpenRouter error (${res.status}): ${text}`);
-    console.warn("Falling back to lectures-first ordering");
-    return fallbackOrdering(lectures, pdfEntries);
-  }
-
-  const json = await res.json();
-  const raw = json.choices?.[0]?.message?.content ?? "";
-
-  try {
-    // Strip markdown fences if the model added them despite instructions
-    const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const items = JSON.parse(cleaned) as OrderedItem[];
-    console.log(`LLM returned ${items.length} ordered items`);
-    return items;
-  } catch (e) {
-    console.error("Failed to parse LLM response:", e);
-    console.log("Raw response:", raw.slice(0, 500));
-    console.warn("Falling back to lectures-first ordering");
-    return fallbackOrdering(lectures, pdfEntries);
-  }
-}
-
-function fallbackOrdering(lectures: LectureEntry[], pdfEntries: PdfEntry[]): OrderedItem[] {
-  const items: OrderedItem[] = [];
-
-  for (let i = 0; i < lectures.length; i++) {
-    items.push({ type: "lecture", title: lectures[i].title, lectureIndex: i, pdfFilenames: [] });
-  }
-
-  // Group non-lecture-notes PDFs by type
-  for (const pdf of pdfEntries) {
-    if (pdf.guessedType === "lecture_notes") continue;
-    const type = pdf.guessedType === "solution" ? "problem_set" : pdf.guessedType;
-    items.push({
-      type: type as OrderedItem["type"],
-      title: pdf.title,
-      lectureIndex: undefined,
-      pdfFilenames: [pdf.filename],
-    });
-  }
-
-  return items;
-}
-
-// Scan resources/*/data.json in the zip for PDF titles.
-// Each data.json has { title, file } where file contains the hash-prefixed filename.
-// Returns a map: hash-prefixed filename → clean title.
-function extractPdfTitlesFromResources(contentRoot: string): Map<string, string> {
-  const titleMap = new Map<string, string>();
-  const resourcesDir = path.join(contentRoot, "resources");
-  if (!fs.existsSync(resourcesDir)) return titleMap;
-
-  const dataFiles = findFiles(resourcesDir, (fp) => fp.endsWith("data.json"));
-  for (const dataFile of dataFiles) {
-    try {
-      const data = JSON.parse(fs.readFileSync(dataFile, "utf-8"));
-      if (!data.file || !data.title) continue;
-      // data.file is like "/courses/.../60f0a029ab..._MIT6_006S20_ps0-questions.pdf"
-      const filename = data.file.split("/").pop();
-      if (!filename || !filename.toLowerCase().endsWith(".pdf")) continue;
-      titleMap.set(filename, data.title);
-    } catch {
-      // Skip malformed data.json
-    }
-  }
-
-  return titleMap;
-}
-
-// Sanitize a title into a safe filename: "Problem Set 1: Graphs" → "problem-set-1-graphs.pdf"
-function titleToFilename(title: string): string {
-  return title
+function slugify(value: string): string {
+  const slug = value
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/[^a-z0-9\s-]/g, " ")
     .trim()
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80) + ".pdf";
+    .replace(/-+/g, "-");
+
+  return slug || "item";
 }
 
-function guessPdfType(filename: string): PdfEntry["guessedType"] {
-  const lower = filename.toLowerCase();
-  if (/_lec\d+/i.test(lower) || lower.includes("lecture")) return "lecture_notes";
-  if (lower.includes("sol") && (lower.includes("ps") || lower.includes("hw") || lower.includes("pset"))) return "solution";
-  if (lower.includes("_ps") || lower.includes("pset") || lower.includes("homework") || lower.includes("_hw")) return "problem_set";
-  if (lower.includes("final") || lower.includes("quiz") || lower.includes("exam") || lower.includes("midterm")) return "exam";
-  if (/_r\d+/.test(lower) || lower.includes("recitation")) return "recitation";
-  if (lower.includes("sol")) return "solution";
+function stripSolutionWords(title: string): string {
+  const cleaned = title
+    .replace(/\b(solution|solutions|answer key|answers|soln?)\b/gi, "")
+    .replace(/[-:\s]+$/g, "");
+  return normalizeWhitespace(cleaned);
+}
+
+function titleToFilename(title: string): string {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 80) + ".pdf"
+  );
+}
+
+function inferResourceType(text: string): NonVideoResourceType {
+  const lower = text.toLowerCase();
+
+  if (/\b(solution|solutions|answer key|answers|soln?|sol)\b/.test(lower)) return "solution";
+  if (/\b(recitation|tutorial|problem session)\b/.test(lower)) return "recitation";
+  if (/\b(quiz|midterm|final|exam|test)\b/.test(lower)) return "exam";
+  if (/\b(problem\s*set|pset|assignment|homework|hw)\b/.test(lower)) return "problem_set";
+  if (/\b(lecture|notes?)\b/.test(lower)) return "lecture_notes";
+
   return "other";
 }
 
-async function downloadCourse(slug: string) {
+function sectionTypeForResource(resourceType: NonVideoResourceType, contextText: string): SectionType {
+  if (resourceType === "problem_set") return "problem_set";
+  if (resourceType === "exam") return "exam";
+  if (resourceType === "recitation") return "recitation";
+
+  if (resourceType === "solution") {
+    return /\b(quiz|midterm|final|exam|test)\b/i.test(contextText) ? "exam" : "problem_set";
+  }
+
+  if (resourceType === "lecture_notes") return "lecture";
+  return "other";
+}
+
+function sourcePriorityForPage(relativePath: string): number {
+  const lower = relativePath.toLowerCase();
+
+  if (
+    lower.includes("pages/resource-index")
+    || lower.includes("pages/calendar")
+    || lower.includes("pages/syllabus")
+    || lower.includes("pages/schedule")
+  ) {
+    return 0;
+  }
+
+  if (lower.includes("video_galleries")) return 1;
+
+  if (
+    lower.includes("pages/assignments")
+    || lower.includes("pages/quizzes")
+    || lower.includes("pages/exams")
+    || lower.includes("pages/recitations")
+    || lower.includes("pages/problem")
+    || lower.includes("pages/readings")
+  ) {
+    return 2;
+  }
+
+  return 3;
+}
+
+function parseHrefPath(href: string): string {
+  const trimmed = href.trim();
+  if (!trimmed) return "";
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      return decodeURIComponent(new URL(trimmed).pathname);
+    } catch {
+      return "";
+    }
+  }
+
+  return decodeURIComponent(trimmed.split("#")[0].split("?")[0]);
+}
+
+function extractResourceIdFromHref(href: string): string | null {
+  const parsed = parseHrefPath(href);
+  if (!parsed) return null;
+
+  const segments = parsed.split("/").filter(Boolean);
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (segments[i] === "resources") {
+      return segments[i + 1] || null;
+    }
+  }
+
+  return null;
+}
+
+function slugFromHref(href: string): string | null {
+  const parsed = parseHrefPath(href);
+  if (!parsed) return null;
+
+  const segments = parsed.split("/").filter(Boolean);
+  if (!segments.length) return null;
+
+  return segments[segments.length - 1] ?? null;
+}
+
+function extractAnchorDisplayText($: cheerio.CheerioAPI, el: CheerioTarget): string {
+  const $a = $(el);
+  const heading = stripDownloadArtifacts(
+    normalizeWhitespace($a.find("h1,h2,h3,h4,h5,h6,strong").first().text()),
+  );
+  if (heading) return heading;
+
+  const aria = stripDownloadArtifacts(normalizeWhitespace($a.attr("aria-label") ?? ""));
+  if (aria) return aria;
+
+  const titleAttr = stripDownloadArtifacts(normalizeWhitespace($a.attr("title") ?? ""));
+  if (titleAttr) return titleAttr;
+
+  const text = stripDownloadArtifacts(normalizeWhitespace($a.text()));
+  if (text) return text;
+
+  return normalizeWhitespace($a.text());
+}
+
+function extractTableRowHeader($: cheerio.CheerioAPI, el: CheerioTarget): string | null {
+  const $row = $(el).closest("tr");
+  if (!$row.length) return null;
+
+  const th = normalizeWhitespace($row.children("th").first().text());
+  if (th) return th;
+
+  const firstCell = normalizeWhitespace($row.children("td").first().text());
+  return firstCell || null;
+}
+
+function extractTableColumnHeader($: cheerio.CheerioAPI, el: CheerioTarget): string | null {
+  const $cell = $(el).closest("th,td");
+  if (!$cell.length) return null;
+
+  const $row = $cell.parent();
+  const cellIndex = $row.children("th,td").index($cell);
+  if (cellIndex < 0) return null;
+
+  const $table = $cell.closest("table");
+  if (!$table.length) return null;
+
+  const headerFromHead = normalizeWhitespace(
+    $table.find("thead tr").first().children("th,td").eq(cellIndex).text(),
+  );
+  if (headerFromHead) return headerFromHead;
+
+  const headerFromFirstRow = normalizeWhitespace(
+    $table.find("tr").first().children("th,td").eq(cellIndex).text(),
+  );
+  if (headerFromFirstRow) return headerFromFirstRow;
+
+  return null;
+}
+
+function toHtmlCandidates(rawPath: string): string[] {
+  const normalized = path.posix.normalize(rawPath).replace(/^\.\//, "");
+  if (!normalized || normalized === "." || normalized.startsWith("..")) return [];
+
+  const candidates = new Set<string>();
+  candidates.add(normalized);
+
+  if (normalized.endsWith("/")) {
+    candidates.add(`${normalized}index.html`);
+  }
+
+  if (!normalized.endsWith(".html")) {
+    candidates.add(`${normalized}.html`);
+    candidates.add(path.posix.join(normalized, "index.html"));
+  }
+
+  if (normalized.endsWith("/index")) {
+    candidates.add(`${normalized}.html`);
+  }
+
+  return Array.from(candidates).map((entry) => entry.replace(/^\//, ""));
+}
+
+function resolveLocalHtmlPath(href: string, currentPath: string, htmlSet: Set<string>): string | null {
+  const trimmed = href.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("#")) return null;
+  if (trimmed.startsWith("mailto:")) return null;
+  if (trimmed.startsWith("tel:")) return null;
+  if (trimmed.startsWith("javascript:")) return null;
+
+  const tryCandidates = (rawPath: string): string | null => {
+    for (const candidate of toHtmlCandidates(rawPath)) {
+      if (htmlSet.has(candidate)) return candidate;
+    }
+    return null;
+  };
+
+  const rawPath = parseHrefPath(trimmed);
+  if (!rawPath) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    const direct = tryCandidates(rawPath.replace(/^\//, ""));
+    if (direct) return direct;
+
+    for (const marker of ["/pages/", "/resources/", "/video_galleries/"]) {
+      const idx = rawPath.indexOf(marker);
+      if (idx >= 0) {
+        const candidate = tryCandidates(rawPath.slice(idx + 1));
+        if (candidate) return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  if (rawPath.startsWith("/")) {
+    return tryCandidates(rawPath.replace(/^\//, ""));
+  }
+
+  const fromCurrentDir = path.posix.join(path.posix.dirname(currentPath), rawPath);
+  const relativeMatch = tryCandidates(fromCurrentDir);
+  if (relativeMatch) return relativeMatch;
+
+  const rootMatch = tryCandidates(rawPath);
+  if (rootMatch) return rootMatch;
+
+  for (const marker of ["pages/", "resources/", "video_galleries/"]) {
+    const idx = rawPath.indexOf(marker);
+    if (idx >= 0) {
+      const candidate = tryCandidates(rawPath.slice(idx));
+      if (candidate) return candidate;
+    }
+  }
+
+  return null;
+}
+
+function compareHintTuple(
+  aSource: number,
+  aPage: number,
+  aLink: number,
+  bSource: number,
+  bPage: number,
+  bLink: number,
+): number {
+  if (aSource !== bSource) return aSource - bSource;
+  if (aPage !== bPage) return aPage - bPage;
+  return aLink - bLink;
+}
+
+function makeUniqueSlug(base: string, used: Set<string>): string {
+  const normalized = slugify(base || "item");
+  if (!used.has(normalized)) {
+    used.add(normalized);
+    return normalized;
+  }
+
+  let idx = 2;
+  while (used.has(`${normalized}-${idx}`)) idx++;
+  const unique = `${normalized}-${idx}`;
+  used.add(unique);
+  return unique;
+}
+
+function loadResourceMetadata(contentRoot: string): {
+  resourceMap: Map<string, RawResourceMetadata>;
+  pdfTitleMap: Map<string, string>;
+} {
+  const resourcesDir = path.join(contentRoot, "resources");
+  const resourceMap = new Map<string, RawResourceMetadata>();
+  const pdfTitleMap = new Map<string, string>();
+
+  if (!fs.existsSync(resourcesDir)) {
+    return { resourceMap, pdfTitleMap };
+  }
+
+  const dataFiles = findFiles(resourcesDir, (fp) => fp.endsWith("data.json"));
+  for (const dataFile of dataFiles) {
+    const resourceId = path.basename(path.dirname(dataFile));
+
+    try {
+      const data = JSON.parse(fs.readFileSync(dataFile, "utf-8"));
+      const rawTitle = typeof data.title === "string" ? normalizeWhitespace(data.title) : "";
+      const cleanedTitle = stripDownloadArtifacts(rawTitle);
+      const title = rawTitle || normalizeWhitespace(resourceId.replace(/-/g, " "));
+      const resolvedTitle = cleanedTitle || title;
+
+      const filePath = typeof data.file === "string" ? data.file : null;
+      const originalFilename = filePath ? filePath.split("/").pop() ?? null : null;
+
+      if (originalFilename?.toLowerCase().endsWith(".pdf")) {
+        pdfTitleMap.set(originalFilename, resolvedTitle);
+      }
+
+      const contextText = `${resolvedTitle} ${originalFilename ?? ""}`;
+      const inferredResourceType = inferResourceType(contextText);
+
+      resourceMap.set(resourceId, {
+        id: resourceId,
+        title: resolvedTitle,
+        filePath,
+        originalFilename,
+        inferredResourceType,
+        sectionTypeHint: sectionTypeForResource(inferredResourceType, contextText),
+        numberHint: extractNumberHint(contextText),
+      });
+    } catch {
+      // Ignore malformed resource metadata files
+    }
+  }
+
+  return { resourceMap, pdfTitleMap };
+}
+
+async function uploadStaticPdfs(
+  contentRoot: string,
+  slug: string,
+  pdfTitleMap: Map<string, string>,
+): Promise<UploadResult> {
+  const staticDir = path.join(contentRoot, "static_resources");
+  const pdfUrlByFilename = new Map<string, string>();
+  const pdfRenameMap = new Map<string, string>();
+
+  if (!fs.existsSync(staticDir)) {
+    return {
+      uploadedPdfCount: 0,
+      pdfUrlByFilename,
+      pdfRenameMap,
+    };
+  }
+
+  const usedFilenames = new Set<string>();
+  let uploadedPdfCount = 0;
+
+  const staticFiles = fs.readdirSync(staticDir).sort((a, b) => a.localeCompare(b));
+  for (const file of staticFiles) {
+    if (!file.toLowerCase().endsWith(".pdf")) continue;
+
+    const htmlTitle = pdfTitleMap.get(file);
+    if (isTranscriptArtifact(htmlTitle ?? "", file)) {
+      continue;
+    }
+    let newFilename = htmlTitle ? titleToFilename(htmlTitle) : file;
+
+    if (usedFilenames.has(newFilename)) {
+      let i = 2;
+      while (usedFilenames.has(newFilename.replace(/\.pdf$/i, `-${i}.pdf`))) i++;
+      newFilename = newFilename.replace(/\.pdf$/i, `-${i}.pdf`);
+    }
+
+    usedFilenames.add(newFilename);
+
+    const filePath = path.join(staticDir, file);
+    const objectPath = `${STORAGE_PREFIX}/${slug}/${newFilename}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(objectPath, fs.readFileSync(filePath), {
+        contentType: "application/pdf",
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`Error uploading PDF ${file}: ${uploadError.message}`);
+    }
+
+    const url = buildStoragePublicUrl(objectPath);
+    pdfUrlByFilename.set(newFilename, url);
+    pdfRenameMap.set(file, newFilename);
+    uploadedPdfCount++;
+
+    if (htmlTitle) {
+      console.log(`  ${file} -> ${newFilename} ("${htmlTitle}")`);
+    }
+  }
+
+  return {
+    uploadedPdfCount,
+    pdfUrlByFilename,
+    pdfRenameMap,
+  };
+}
+
+function crawlCourseSite(contentRoot: string): CrawledPage[] {
+  const htmlAbsolutePaths = findFiles(contentRoot, (fp) => fp.endsWith(".html"));
+  const absoluteByRelative = new Map<string, string>();
+
+  for (const absolutePath of htmlAbsolutePaths) {
+    const relativePath = toPosixPath(path.relative(contentRoot, absolutePath));
+    absoluteByRelative.set(relativePath, absolutePath);
+  }
+
+  const htmlRelativePaths = Array.from(absoluteByRelative.keys()).sort((a, b) => a.localeCompare(b));
+
+  if (!htmlRelativePaths.length) {
+    throw new Error("No HTML files found in extracted course zip.");
+  }
+
+  const htmlSet = new Set(htmlRelativePaths);
+  const queue: string[] = [];
+  const queued = new Set<string>();
+  const visited = new Set<string>();
+  const pages: CrawledPage[] = [];
+
+  const enqueue = (relativePath: string | null) => {
+    if (!relativePath) return;
+    if (!htmlSet.has(relativePath)) return;
+    if (visited.has(relativePath) || queued.has(relativePath)) return;
+    queue.push(relativePath);
+    queued.add(relativePath);
+  };
+
+  const seed = htmlSet.has("index.html") ? "index.html" : htmlRelativePaths[0];
+  enqueue(seed);
+
+  if (htmlSet.has("index.html")) {
+    const indexAbsolutePath = absoluteByRelative.get("index.html");
+    if (indexAbsolutePath) {
+      const indexHtml = fs.readFileSync(indexAbsolutePath, "utf-8");
+      const $index = cheerio.load(indexHtml);
+      $index("nav a[href], .course-nav a[href], #course-nav a[href], [role=navigation] a[href], .sidenav a[href]").each((_, el) => {
+        const href = $index(el).attr("href") ?? "";
+        const resolved = resolveLocalHtmlPath(href, "index.html", htmlSet);
+        enqueue(resolved);
+      });
+    }
+  }
+
+  const processQueuedPage = (relativePath: string) => {
+    const absolutePath = absoluteByRelative.get(relativePath);
+    if (!absolutePath) return;
+
+    const html = fs.readFileSync(absolutePath, "utf-8");
+    const $ = cheerio.load(html);
+
+    const title = normalizeWhitespace($("title").first().text())
+      || normalizeWhitespace($("h1").first().text())
+      || relativePath;
+
+    pages.push({
+      relativePath,
+      absolutePath,
+      title,
+      order: pages.length,
+      sourcePriority: sourcePriorityForPage(relativePath),
+    });
+
+    $("a[href]").each((_, el) => {
+      const href = $(el).attr("href") ?? "";
+      const resolved = resolveLocalHtmlPath(href, relativePath, htmlSet);
+      enqueue(resolved);
+    });
+  };
+
+  while (queue.length > 0) {
+    const relativePath = queue.shift()!;
+    queued.delete(relativePath);
+    if (visited.has(relativePath)) continue;
+
+    visited.add(relativePath);
+    processQueuedPage(relativePath);
+  }
+
+  for (const relativePath of htmlRelativePaths) {
+    enqueue(relativePath);
+  }
+
+  while (queue.length > 0) {
+    const relativePath = queue.shift()!;
+    queued.delete(relativePath);
+    if (visited.has(relativePath)) continue;
+
+    visited.add(relativePath);
+    processQueuedPage(relativePath);
+  }
+
+  return pages;
+}
+
+function extractResourceOccurrences(crawledPages: CrawledPage[]): ResourceOccurrence[] {
+  const occurrences: ResourceOccurrence[] = [];
+
+  for (const page of crawledPages) {
+    const html = fs.readFileSync(page.absolutePath, "utf-8");
+    const $ = cheerio.load(html);
+
+    const anchors = $("a[href]").toArray();
+    anchors.forEach((el, idx) => {
+      const href = $(el).attr("href") ?? "";
+      const resourceId = extractResourceIdFromHref(href);
+      if (!resourceId) return;
+
+      const linkText = extractAnchorDisplayText($, el);
+      const rowHeader = extractTableRowHeader($, el);
+      const columnHeader = extractTableColumnHeader($, el);
+
+      const contextText = [linkText, rowHeader ?? "", columnHeader ?? "", page.relativePath, page.title]
+        .join(" ")
+        .trim();
+
+      const weekHint = extractWeekNumber(contextText);
+      const numberHint = extractNumberHint(contextText);
+
+      occurrences.push({
+        resourceId,
+        linkText,
+        pagePath: page.relativePath,
+        pageOrder: page.order,
+        linkOrder: idx,
+        sourcePriority: page.sourcePriority,
+        weekHint,
+        numberHint,
+        inferredResourceType: inferResourceType(contextText),
+        rowHeader,
+        columnHeader,
+      });
+    });
+  }
+
+  return occurrences;
+}
+
+function extractVideoMetadataFromHtml(html: string): { youtubeId: string | null; archiveUrl: string | null } {
+  const youtubeId = extractYouTubeId(html);
+  const archiveUrl = extractArchiveUrl(html);
+  return { youtubeId, archiveUrl };
+}
+
+function extractLectures(
+  contentRoot: string,
+  crawledPages: CrawledPage[],
+  rawResourceMap: Map<string, RawResourceMetadata>,
+): LectureEntry[] {
+  const lectureByKey = new Map<string, LectureEntry>();
+
+  const upsertLecture = (candidate: LectureEntry) => {
+    const key = candidate.resourceId
+      ? `res:${candidate.resourceId}`
+      : candidate.youtubeId
+        ? `yt:${candidate.youtubeId}`
+        : candidate.archiveUrl
+          ? `arch:${candidate.archiveUrl.replace(/^http:\/\//i, "https://")}`
+          : candidate.lectureNumber !== null
+            ? `num:${candidate.lectureNumber}`
+            : `title:${slugify(candidate.title)}:${candidate.slug}`;
+    const existing = lectureByKey.get(key);
+    if (!existing) {
+      lectureByKey.set(key, candidate);
+      return;
+    }
+
+    if (!existing.youtubeId && candidate.youtubeId) existing.youtubeId = candidate.youtubeId;
+    if (!existing.archiveUrl && candidate.archiveUrl) existing.archiveUrl = candidate.archiveUrl;
+    if (!existing.resourceId && candidate.resourceId) existing.resourceId = candidate.resourceId;
+    if (existing.lectureNumber === null && candidate.lectureNumber !== null) {
+      existing.lectureNumber = candidate.lectureNumber;
+    }
+
+    const currentTuple = [existing.sourcePriority, existing.pageOrder, existing.linkOrder] as const;
+    const candidateTuple = [candidate.sourcePriority, candidate.pageOrder, candidate.linkOrder] as const;
+    if (compareHintTuple(...candidateTuple, ...currentTuple) < 0) {
+      existing.sourcePriority = candidate.sourcePriority;
+      existing.pageOrder = candidate.pageOrder;
+      existing.linkOrder = candidate.linkOrder;
+    }
+
+    if (isGenericDownloadLabel(existing.title) && !isGenericDownloadLabel(candidate.title)) {
+      existing.title = candidate.title;
+    } else if (existing.title.length < candidate.title.length) {
+      existing.title = candidate.title;
+    }
+  };
+
+  for (const page of crawledPages) {
+    const html = fs.readFileSync(page.absolutePath, "utf-8");
+    const $ = cheerio.load(html);
+    const isVideoGalleryPage = page.relativePath.toLowerCase().includes("video_galleries");
+
+    const anchors = $("a[href]").toArray();
+    anchors.forEach((el, idx) => {
+      const $a = $(el);
+      const href = $a.attr("href") ?? "";
+      const imgSrc = $a.find("img").attr("src") ?? "";
+      const resourceId = extractResourceIdFromHref(href);
+
+      const anchorTitle = extractAnchorDisplayText($, el);
+      const metadataTitle = resourceId ? rawResourceMap.get(resourceId)?.title ?? "" : "";
+      const headingFallback = normalizeWhitespace($("h1").first().text());
+      const fallbackTitle = headingFallback || `Lecture ${lectureByKey.size + 1}`;
+      const candidateTitle = isGenericDownloadLabel(anchorTitle) && metadataTitle
+        ? metadataTitle
+        : anchorTitle;
+      let title = stripDownloadArtifacts(candidateTitle || metadataTitle || fallbackTitle);
+
+      const youtubeId = extractYouTubeId(href) ?? extractYouTubeId(imgSrc);
+      const archiveUrl = /archive\.org\/download\/.+\.mp4/i.test(href) ? href : null;
+      if (archiveUrl && isGenericDownloadLabel(title)) {
+        const derivedTitle = deriveTitleFromMediaUrl(archiveUrl);
+        if (derivedTitle) title = derivedTitle;
+      }
+      const looksLikeLecture = /\blecture\b/i.test(`${title} ${page.relativePath}`);
+      const hrefHasVideoSignal = /\b(video|watch)\b|youtube|youtu\.be|archive\.org|video_galleries/i.test(href);
+      const hasVideoSignal = Boolean(
+        youtubeId
+        || archiveUrl
+        || (isVideoGalleryPage && resourceId)
+        || (resourceId && looksLikeLecture && hrefHasVideoSignal),
+      );
+
+      if (!hasVideoSignal) return;
+
+      const slug = resourceId
+        ?? slugFromHref(href)
+        ?? `${path.basename(page.relativePath, ".html")}-${idx + 1}`;
+
+      upsertLecture({
+        title,
+        slug,
+        resourceId,
+        youtubeId,
+        archiveUrl,
+        lectureNumber: extractLectureNumber(title),
+        sourcePriority: page.sourcePriority,
+        pageOrder: page.order,
+        linkOrder: idx,
+      });
+    });
+
+    const iframes = $("iframe[src]").toArray();
+    iframes.forEach((el, idx) => {
+      const src = $(el).attr("src") ?? "";
+      const youtubeId = extractYouTubeId(src);
+      const archiveUrl = /archive\.org\/download\/.+\.mp4/i.test(src) ? src : null;
+      if (!youtubeId && !archiveUrl) return;
+
+      let title = stripDownloadArtifacts(
+        normalizeWhitespace($("h1").first().text())
+          || normalizeWhitespace($("h2").first().text())
+          || normalizeWhitespace($("title").first().text())
+          || `Lecture ${lectureByKey.size + 1}`,
+      );
+      if (archiveUrl && isGenericDownloadLabel(title)) {
+        const derivedTitle = deriveTitleFromMediaUrl(archiveUrl);
+        if (derivedTitle) title = derivedTitle;
+      }
+
+      upsertLecture({
+        title,
+        slug: `${path.basename(page.relativePath, ".html")}-iframe-${idx + 1}`,
+        resourceId: null,
+        youtubeId,
+        archiveUrl,
+        lectureNumber: extractLectureNumber(title),
+        sourcePriority: page.sourcePriority,
+        pageOrder: page.order,
+        linkOrder: anchors.length + idx,
+      });
+    });
+  }
+
+  for (const lecture of lectureByKey.values()) {
+    if (!lecture.resourceId) continue;
+
+    const metadata = rawResourceMap.get(lecture.resourceId);
+    if (metadata && isGenericDownloadLabel(lecture.title)) {
+      lecture.title = metadata.title;
+    }
+
+    const resourcePagePath = path.join(contentRoot, "resources", lecture.resourceId, "index.html");
+    if (!fs.existsSync(resourcePagePath)) continue;
+
+    const html = fs.readFileSync(resourcePagePath, "utf-8");
+    const metadataFromPage = extractVideoMetadataFromHtml(html);
+
+    if (!lecture.youtubeId && metadataFromPage.youtubeId) {
+      lecture.youtubeId = metadataFromPage.youtubeId;
+    }
+
+    if (!lecture.archiveUrl && metadataFromPage.archiveUrl) {
+      lecture.archiveUrl = metadataFromPage.archiveUrl;
+    }
+
+    if (lecture.lectureNumber === null) {
+      lecture.lectureNumber = extractLectureNumber(lecture.title);
+    }
+  }
+
+  const sorted = Array.from(lectureByKey.values()).sort((a, b) => {
+    if (a.lectureNumber !== null && b.lectureNumber !== null && a.lectureNumber !== b.lectureNumber) {
+      return a.lectureNumber - b.lectureNumber;
+    }
+
+    if (a.lectureNumber !== null && b.lectureNumber === null) return -1;
+    if (a.lectureNumber === null && b.lectureNumber !== null) return 1;
+
+    if (a.sourcePriority !== b.sourcePriority) return a.sourcePriority - b.sourcePriority;
+    if (a.pageOrder !== b.pageOrder) return a.pageOrder - b.pageOrder;
+    return a.linkOrder - b.linkOrder;
+  });
+
+  const seenKeys = new Set<string>();
+  const deduped: LectureEntry[] = [];
+
+  for (const lecture of sorted) {
+    const key = lecture.resourceId
+      ? `res:${lecture.resourceId}`
+      : lecture.youtubeId
+        ? `yt:${lecture.youtubeId}`
+        : lecture.archiveUrl
+          ? `arch:${lecture.archiveUrl.replace(/^http:\/\//i, "https://")}`
+          : lecture.lectureNumber !== null
+            ? `num:${lecture.lectureNumber}`
+            : `title:${slugify(lecture.title)}`;
+
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    deduped.push(lecture);
+  }
+
+  return deduped;
+}
+
+function groupOccurrencesByResourceId(occurrences: ResourceOccurrence[]): Map<string, ResourceOccurrence[]> {
+  const grouped = new Map<string, ResourceOccurrence[]>();
+
+  for (const occurrence of occurrences) {
+    if (!grouped.has(occurrence.resourceId)) grouped.set(occurrence.resourceId, []);
+    grouped.get(occurrence.resourceId)!.push(occurrence);
+  }
+
+  for (const entry of grouped.values()) {
+    entry.sort((a, b) => compareHintTuple(a.sourcePriority, a.pageOrder, a.linkOrder, b.sourcePriority, b.pageOrder, b.linkOrder));
+  }
+
+  return grouped;
+}
+
+function resolveVerifiedResources(
+  rawResourceMap: Map<string, RawResourceMetadata>,
+  occurrencesByResourceId: Map<string, ResourceOccurrence[]>,
+  pdfRenameMap: Map<string, string>,
+  pdfUrlByFilename: Map<string, string>,
+): Map<string, VerifiedResource> {
+  const verified = new Map<string, VerifiedResource>();
+
+  for (const raw of rawResourceMap.values()) {
+    const occurrenceEntries = occurrencesByResourceId.get(raw.id) ?? [];
+    const occurrence = occurrenceEntries[0] ?? null;
+
+    // Only keep resources explicitly referenced by crawled course pages.
+    if (!occurrence) continue;
+
+    if (!raw.originalFilename || !raw.originalFilename.toLowerCase().endsWith(".pdf")) continue;
+    if (isTranscriptArtifact(raw.title, raw.originalFilename)) continue;
+
+    const uploadedFilename = pdfRenameMap.get(raw.originalFilename);
+    if (!uploadedFilename) continue;
+
+    const pdfUrl = pdfUrlByFilename.get(uploadedFilename);
+    if (!pdfUrl) continue;
+
+    const occurrenceText = occurrence
+      ? `${occurrence.linkText} ${occurrence.columnHeader ?? ""} ${occurrence.rowHeader ?? ""}`
+      : "";
+
+    const inferredFromOccurrence = occurrence?.inferredResourceType ?? "other";
+    const resourceType = inferredFromOccurrence !== "other" ? inferredFromOccurrence : raw.inferredResourceType;
+
+    const contextText = `${raw.title} ${occurrenceText} ${raw.originalFilename ?? ""}`;
+    const sectionType = sectionTypeForResource(resourceType, contextText);
+
+    verified.set(raw.id, {
+      id: raw.id,
+      title: raw.title,
+      uploadedFilename,
+      pdfUrl,
+      resourceType,
+      sectionType,
+      numberHint: occurrence?.numberHint ?? raw.numberHint,
+      weekHint: occurrence?.weekHint ?? extractWeekNumber(contextText),
+      sourcePriority: occurrence?.sourcePriority ?? 9,
+      pageOrder: occurrence?.pageOrder ?? Number.MAX_SAFE_INTEGER,
+      linkOrder: occurrence?.linkOrder ?? Number.MAX_SAFE_INTEGER,
+    });
+  }
+
+  return verified;
+}
+
+function defaultSectionTitle(sectionType: SectionType, numberHint: number | null, fallbackTitle: string): string {
+  const cleanedFallback = normalizeWhitespace(stripSolutionWords(fallbackTitle));
+  if (cleanedFallback && !isBlockedSidebarTitle(cleanedFallback)) return cleanedFallback;
+
+  if (numberHint !== null) {
+    if (sectionType === "problem_set") return `Problem Set ${numberHint}`;
+    if (sectionType === "exam") return `Exam ${numberHint}`;
+    if (sectionType === "recitation") return `Recitation ${numberHint}`;
+    if (sectionType === "lecture") return `Lecture ${numberHint}`;
+  }
+
+  if (sectionType === "problem_set") return "Problem Set";
+  if (sectionType === "exam") return "Exam";
+  if (sectionType === "recitation") return "Recitation";
+  if (sectionType === "lecture") return "Lecture";
+  return "Resource";
+}
+
+function sectionTypePriority(type: SectionType): number {
+  if (type === "lecture") return 0;
+  if (type === "recitation") return 1;
+  if (type === "other") return 2;
+  if (type === "problem_set") return 3;
+  if (type === "exam") return 4;
+  return 5;
+}
+
+function resourceTypePriority(type: NonVideoResourceType): number {
+  if (type === "problem_set" || type === "exam" || type === "recitation") return 0;
+  if (type === "other" || type === "lecture_notes") return 1;
+  if (type === "solution") return 2;
+  return 3;
+}
+
+function findBestLectureHint(
+  lecture: LectureEntry,
+  allOccurrences: ResourceOccurrence[],
+  occurrencesByResourceId: Map<string, ResourceOccurrence[]>,
+): ResourceOccurrence | null {
+  if (lecture.resourceId) {
+    const byResource = occurrencesByResourceId.get(lecture.resourceId);
+    if (byResource?.length) return byResource[0];
+  }
+
+  if (lecture.lectureNumber === null) return null;
+
+  let best: ResourceOccurrence | null = null;
+  for (const occurrence of allOccurrences) {
+    if (occurrence.numberHint !== lecture.lectureNumber) continue;
+
+    const looksLikeLecture = occurrence.inferredResourceType === "lecture_notes"
+      || /\blecture\b/i.test(occurrence.linkText)
+      || /\blecture\b/i.test(occurrence.columnHeader ?? "");
+
+    if (!looksLikeLecture) continue;
+
+    if (!best) {
+      best = occurrence;
+      continue;
+    }
+
+    const cmp = compareHintTuple(
+      occurrence.sourcePriority,
+      occurrence.pageOrder,
+      occurrence.linkOrder,
+      best.sourcePriority,
+      best.pageOrder,
+      best.linkOrder,
+    );
+
+    if (cmp < 0) best = occurrence;
+  }
+
+  return best;
+}
+
+function deriveResourceGroupKey(resource: VerifiedResource): string {
+  if (resource.sectionType === "problem_set" || resource.sectionType === "exam" || resource.sectionType === "recitation") {
+    if (resource.numberHint !== null) {
+      return `${resource.sectionType}:${resource.numberHint}`;
+    }
+
+    const normalized = slugify(stripSolutionWords(resource.title));
+    if (normalized) return `${resource.sectionType}:${normalized}`;
+  }
+
+  return `${resource.sectionType}:${resource.id}`;
+}
+
+function buildPreparedSectionsAgent(
+  lectures: LectureEntry[],
+  verifiedResources: Map<string, VerifiedResource>,
+  allOccurrences: ResourceOccurrence[],
+  occurrencesByResourceId: Map<string, ResourceOccurrence[]>,
+): PreparedSection[] {
+  const lectureIndexByNumber = new Map<number, number>();
+  const lectureIndexByResourceId = new Map<string, number>();
+
+  lectures.forEach((lecture, idx) => {
+    if (lecture.lectureNumber !== null && !lectureIndexByNumber.has(lecture.lectureNumber)) {
+      lectureIndexByNumber.set(lecture.lectureNumber, idx);
+    }
+
+    if (lecture.resourceId && !lectureIndexByResourceId.has(lecture.resourceId)) {
+      lectureIndexByResourceId.set(lecture.resourceId, idx);
+    }
+  });
+
+  const notesByLecture = new Map<number, string[]>();
+  const assignedResourceIds = new Set<string>();
+
+  for (const resource of verifiedResources.values()) {
+    if (resource.resourceType !== "lecture_notes") continue;
+
+    let lectureIndex: number | null = null;
+
+    if (lectureIndexByResourceId.has(resource.id)) {
+      lectureIndex = lectureIndexByResourceId.get(resource.id)!;
+    } else if (resource.numberHint !== null && lectureIndexByNumber.has(resource.numberHint)) {
+      lectureIndex = lectureIndexByNumber.get(resource.numberHint)!;
+    }
+
+    if (lectureIndex === null) continue;
+
+    if (!notesByLecture.has(lectureIndex)) notesByLecture.set(lectureIndex, []);
+    notesByLecture.get(lectureIndex)!.push(resource.id);
+    assignedResourceIds.add(resource.id);
+  }
+
+  const sections: PreparedSection[] = [];
+  let orderSeed = 0;
+
+  for (let i = 0; i < lectures.length; i++) {
+    const lecture = lectures[i];
+    const resources: PreparedResource[] = [];
+
+    if (lecture.youtubeId || lecture.archiveUrl) {
+      resources.push({
+        title: lecture.title,
+        resourceType: "video",
+        pdfPath: null,
+        videoUrl: lecture.youtubeId ? `https://www.youtube.com/watch?v=${lecture.youtubeId}` : null,
+        youtubeId: lecture.youtubeId,
+        archiveUrl: lecture.archiveUrl,
+      });
+    }
+
+    const noteIds = (notesByLecture.get(i) ?? []).sort((a, b) => a.localeCompare(b));
+    for (const noteId of noteIds) {
+      const note = verifiedResources.get(noteId);
+      if (!note) continue;
+      resources.push({
+        title: note.title,
+        resourceType: "lecture_notes",
+        pdfPath: note.pdfUrl,
+        videoUrl: null,
+        youtubeId: null,
+        archiveUrl: null,
+      });
+    }
+
+    if (!resources.length) continue;
+
+    const bestHint = findBestLectureHint(lecture, allOccurrences, occurrencesByResourceId);
+
+    const lectureTitle = defaultSectionTitle(
+      "lecture",
+      lecture.lectureNumber ?? bestHint?.weekHint ?? i + 1,
+      lecture.title,
+    );
+
+    sections.push({
+      key: `lecture:${lecture.resourceId ?? lecture.slug ?? i}`,
+      title: lectureTitle,
+      slugBase: lecture.slug || lectureTitle,
+      sectionType: "lecture",
+      resources,
+      weekHint: bestHint?.weekHint ?? lecture.lectureNumber ?? i + 1,
+      sourcePriority: bestHint?.sourcePriority ?? lecture.sourcePriority,
+      pageOrder: bestHint?.pageOrder ?? lecture.pageOrder,
+      linkOrder: bestHint?.linkOrder ?? lecture.linkOrder,
+      orderSeed: orderSeed++,
+    });
+  }
+
+  interface ResourceGroup {
+    key: string;
+    sectionType: SectionType;
+    title: string;
+    numberHint: number | null;
+    weekHint: number | null;
+    sourcePriority: number;
+    pageOrder: number;
+    linkOrder: number;
+    resources: VerifiedResource[];
+  }
+
+  const groups = new Map<string, ResourceGroup>();
+
+  for (const resource of verifiedResources.values()) {
+    if (assignedResourceIds.has(resource.id)) continue;
+
+    const groupKey = deriveResourceGroupKey(resource);
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        key: groupKey,
+        sectionType: resource.resourceType === "lecture_notes" ? "other" : resource.sectionType,
+        title: resource.title,
+        numberHint: resource.numberHint,
+        weekHint: resource.weekHint ?? resource.numberHint,
+        sourcePriority: resource.sourcePriority,
+        pageOrder: resource.pageOrder,
+        linkOrder: resource.linkOrder,
+        resources: [],
+      });
+    }
+
+    const group = groups.get(groupKey)!;
+    group.resources.push(resource);
+
+    if (resource.resourceType !== "solution") {
+      group.title = resource.title;
+    } else if (!group.title) {
+      group.title = stripSolutionWords(resource.title);
+    }
+
+    if (group.numberHint === null && resource.numberHint !== null) {
+      group.numberHint = resource.numberHint;
+    }
+
+    if (group.weekHint === null && resource.weekHint !== null) {
+      group.weekHint = resource.weekHint;
+    }
+
+    const cmp = compareHintTuple(
+      resource.sourcePriority,
+      resource.pageOrder,
+      resource.linkOrder,
+      group.sourcePriority,
+      group.pageOrder,
+      group.linkOrder,
+    );
+
+    if (cmp < 0) {
+      group.sourcePriority = resource.sourcePriority;
+      group.pageOrder = resource.pageOrder;
+      group.linkOrder = resource.linkOrder;
+    }
+  }
+
+  for (const group of groups.values()) {
+    const sortedResources = [...group.resources].sort((a, b) => {
+      const typeDiff = resourceTypePriority(a.resourceType) - resourceTypePriority(b.resourceType);
+      if (typeDiff !== 0) return typeDiff;
+      return a.title.localeCompare(b.title);
+    });
+
+    const preparedResources: PreparedResource[] = sortedResources.map((resource) => ({
+      title: resource.title,
+      resourceType: resource.resourceType === "lecture_notes" ? "other" : resource.resourceType,
+      pdfPath: resource.pdfUrl,
+      videoUrl: null,
+      youtubeId: null,
+      archiveUrl: null,
+    }));
+
+    if (!preparedResources.length) continue;
+
+    const title = defaultSectionTitle(group.sectionType, group.numberHint, group.title);
+    const slugBase = `${group.sectionType}-${group.numberHint ?? ""}-${title}`;
+
+    sections.push({
+      key: `resource-group:${group.key}`,
+      title,
+      slugBase,
+      sectionType: group.sectionType,
+      resources: preparedResources,
+      weekHint: group.weekHint ?? group.numberHint,
+      sourcePriority: group.sourcePriority,
+      pageOrder: group.pageOrder,
+      linkOrder: group.linkOrder,
+      orderSeed: orderSeed++,
+    });
+  }
+
+  sections.sort((a, b) => {
+    const aWeek = a.weekHint ?? Number.MAX_SAFE_INTEGER;
+    const bWeek = b.weekHint ?? Number.MAX_SAFE_INTEGER;
+    if (aWeek !== bWeek) return aWeek - bWeek;
+
+    const typeDiff = sectionTypePriority(a.sectionType) - sectionTypePriority(b.sectionType);
+    if (typeDiff !== 0) return typeDiff;
+
+    const hintDiff = compareHintTuple(
+      a.sourcePriority,
+      a.pageOrder,
+      a.linkOrder,
+      b.sourcePriority,
+      b.pageOrder,
+      b.linkOrder,
+    );
+    if (hintDiff !== 0) return hintDiff;
+
+    if (a.orderSeed !== b.orderSeed) return a.orderSeed - b.orderSeed;
+    return a.title.localeCompare(b.title);
+  });
+
+  return sections;
+}
+
+export async function downloadCourse(slug: string) {
   console.log(`Looking up course with slug: ${slug}`);
 
-  // Find course in Supabase by matching URL
   const { data: courses, error: lookupError } = await supabase
     .from("courses")
     .select("*")
     .ilike("url", `%${slug}%`);
 
   if (lookupError || !courses?.length) {
-    console.error("Course not found:", lookupError?.message ?? "no match");
-    process.exit(1);
+    throw new Error(`Course not found: ${lookupError?.message ?? "no match"}`);
   }
 
   const course = courses[0];
   console.log(`Found course: ${course.title} (id: ${course.id})`);
   console.log(`URL: ${course.url}`);
 
-  // Ensure course URL ends with /
-  const courseUrl = course.url.endsWith("/") ? course.url : course.url + "/";
+  const courseUrl = course.url.endsWith("/") ? course.url : `${course.url}/`;
 
-  // Fetch the download page to find the zip link
-  console.log(`Fetching download page: ${courseUrl}download`);
+  console.log(`[Stage 0] Fetching download page: ${courseUrl}download`);
   const downloadPageRes = await fetch(`${courseUrl}download`);
   if (!downloadPageRes.ok) {
-    console.error(`Failed to fetch download page: ${downloadPageRes.status}`);
-    process.exit(1);
+    throw new Error(`Failed to fetch download page: ${downloadPageRes.status}`);
   }
 
   const downloadHtml = await downloadPageRes.text();
   const $dl = cheerio.load(downloadHtml);
 
-  // Find the first zip download link (full course zip is always first on the page)
   let zipUrl: string | null = null;
   $dl('a[href$=".zip"]').each((_, el) => {
-    if (zipUrl) return; // take only the first match
+    if (zipUrl) return;
     const href = $dl(el).attr("href");
-    if (href) {
-      zipUrl = href.startsWith("http") ? href : new URL(href, courseUrl).toString();
-    }
+    if (!href) return;
+    zipUrl = href.startsWith("http") ? href : new URL(href, courseUrl).toString();
   });
 
   if (!zipUrl) {
-    console.error("Could not find zip download link on the page");
-    process.exit(1);
+    throw new Error("Could not find zip download link on the download page.");
   }
 
-  console.log(`Zip URL: ${zipUrl}`);
+  console.log(`[Stage 0] Zip URL: ${zipUrl}`);
 
-  // Create temp directory
   fs.mkdirSync(TMP_DIR, { recursive: true });
   const zipPath = path.join(TMP_DIR, `${slug}.zip`);
 
-  // Download the zip
-  console.log("Downloading zip...");
+  console.log("[Stage 0] Downloading zip...");
   const zipRes = await fetch(zipUrl);
   if (!zipRes.ok) {
-    console.error(`Failed to download zip: ${zipRes.status}`);
-    process.exit(1);
+    throw new Error(`Failed to download zip: ${zipRes.status}`);
   }
 
   const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
   fs.writeFileSync(zipPath, zipBuffer);
-  console.log(`Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB`);
+  console.log(`[Stage 0] Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB`);
 
-  // Extract zip
-  console.log("Extracting zip...");
+  console.log("[Stage 0] Extracting zip...");
   const zip = new AdmZip(zipPath);
   const extractDir = path.join(TMP_DIR, slug);
   zip.extractAllTo(extractDir, true);
 
-  // Find the root content directory (usually one level deep)
-  const entries = fs.readdirSync(extractDir);
-  const contentRoot = entries.length === 1
-    ? path.join(extractDir, entries[0])
+  const rootEntries = fs.readdirSync(extractDir, { withFileTypes: true })
+    .filter((entry) => entry.name !== "__MACOSX");
+
+  const contentRoot = rootEntries.length === 1 && rootEntries[0].isDirectory()
+    ? path.join(extractDir, rootEntries[0].name)
     : extractDir;
 
-  console.log(`Content root: ${contentRoot}`);
+  console.log(`[Stage 0] Content root: ${contentRoot}`);
 
-  // Extract human-readable PDF titles from HTML pages (before cleanup)
-  const pdfTitleMap = extractPdfTitlesFromResources(contentRoot);
-  console.log(`Found HTML titles for ${pdfTitleMap.size} PDFs`);
+  console.log("[Stage 1] Crawling extracted site graph...");
+  const crawledPages = crawlCourseSite(contentRoot);
+  console.log(`[Stage 1] Crawled ${crawledPages.length} HTML pages`);
 
-  // Upload and rename PDFs to Supabase Storage bucket
-  const pdfUrlByFilename = new Map<string, string>();
+  console.log("[Stage 2] Loading resource metadata from resources/*/data.json...");
+  const { resourceMap: rawResourceMap, pdfTitleMap } = loadResourceMetadata(contentRoot);
+  console.log(`[Stage 2] Loaded metadata for ${rawResourceMap.size} resources (${pdfTitleMap.size} PDF titles)`);
 
-  const staticDir = path.join(contentRoot, "static_resources");
-  let pdfCount = 0;
-  // Maps: original filename → new filename (on disk), original filename → clean title
-  const pdfRenameMap = new Map<string, string>();
-  const pdfFiles: string[] = []; // new filenames (after rename)
-  if (fs.existsSync(staticDir)) {
-    const usedFilenames = new Set<string>();
-    const staticFiles = fs.readdirSync(staticDir);
-    for (const file of staticFiles) {
-      if (file.toLowerCase().endsWith(".pdf")) {
-        const htmlTitle = pdfTitleMap.get(file);
-        let newFilename: string;
-        if (htmlTitle) {
-          newFilename = titleToFilename(htmlTitle);
-          // Deduplicate
-          if (usedFilenames.has(newFilename)) {
-            let i = 2;
-            while (usedFilenames.has(newFilename.replace(".pdf", `-${i}.pdf`))) i++;
-            newFilename = newFilename.replace(".pdf", `-${i}.pdf`);
-          }
-        } else {
-          newFilename = file; // keep original if no HTML title found
-        }
-        usedFilenames.add(newFilename);
-        const filePath = path.join(staticDir, file);
-        const objectPath = `${STORAGE_PREFIX}/${slug}/${newFilename}`;
-        const { error: uploadError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(objectPath, fs.readFileSync(filePath), {
-            contentType: "application/pdf",
-            cacheControl: "3600",
-            upsert: true,
-          });
+  console.log("[Stage 3] Uploading static_resources PDFs with deterministic renaming...");
+  const {
+    uploadedPdfCount,
+    pdfUrlByFilename,
+    pdfRenameMap,
+  } = await uploadStaticPdfs(contentRoot, slug, pdfTitleMap);
+  console.log(`[Stage 3] Uploaded ${uploadedPdfCount} PDFs`);
 
-        if (uploadError) {
-          console.error("Error uploading PDF:", uploadError);
-          process.exit(1);
-        }
+  console.log("[Stage 4] Extracting resource link occurrences from crawled pages...");
+  const occurrences = extractResourceOccurrences(crawledPages);
+  const occurrencesByResourceId = groupOccurrencesByResourceId(occurrences);
+  console.log(`[Stage 4] Extracted ${occurrences.length} link occurrences across ${occurrencesByResourceId.size} resource IDs`);
 
-        pdfUrlByFilename.set(newFilename, buildStoragePublicUrl(objectPath));
-        pdfRenameMap.set(file, newFilename);
-        pdfFiles.push(newFilename);
-        pdfCount++;
-        if (htmlTitle) {
-          console.log(`  ${file} → ${newFilename} ("${htmlTitle}")`);
-        }
-      }
-    }
-  }
-  console.log(`Uploaded ${pdfCount} PDFs to storage bucket: ${STORAGE_BUCKET}/${STORAGE_PREFIX}/${slug}/`);
+  console.log("[Stage 5] Extracting lecture/video items from local HTML...");
+  const lectures = extractLectures(contentRoot, crawledPages, rawResourceMap);
+  console.log(`[Stage 5] Extracted ${lectures.length} lecture candidates`);
 
-  // ── Parse sequential lectures ──
-  // Strategy: check for a cached lectures.json first (from a previous run).
-  // Otherwise fetch the live OCW video gallery page — the zip HTML doesn't
-  // reliably contain YouTube embeds, but the live gallery has YouTube IDs
-  // in thumbnail URLs (img.youtube.com/vi/{ID}/default.jpg).
-  console.log("Parsing lecture structure...");
+  console.log("[Stage 6] Resolving verified resources (must map to uploaded PDFs)...");
+  const verifiedResources = resolveVerifiedResources(
+    rawResourceMap,
+    occurrencesByResourceId,
+    pdfRenameMap,
+    pdfUrlByFilename,
+  );
+  console.log(`[Stage 6] Resolved ${verifiedResources.size} verified resources`);
 
-  const lectures: LectureEntry[] = [];
-  const cacheDir = path.join(TMP_DIR, "cache", slug);
-  fs.mkdirSync(cacheDir, { recursive: true });
-  const lecturesCachePath = path.join(cacheDir, "lectures.json");
+  console.log("[Stage 7] Sequencing with deterministic ordering agent...");
+  const preparedSections = buildPreparedSectionsAgent(
+    lectures,
+    verifiedResources,
+    occurrences,
+    occurrencesByResourceId,
+  );
 
-  if (fs.existsSync(lecturesCachePath)) {
-    console.log("Using cached lectures.json");
-    const cached = JSON.parse(fs.readFileSync(lecturesCachePath, "utf-8")) as LectureEntry[];
-    lectures.push(...cached);
-    console.log(`Loaded ${lectures.length} lectures from cache`);
+  if (!preparedSections.length) {
+    throw new Error("Ordering agent produced zero sections with verified resources.");
   }
 
-  if (lectures.length === 0) {
-    console.log("Fetching live video gallery page...");
-    const galleryUrl = `${courseUrl}video_galleries/lecture-videos/`;
-    const galleryRes = await fetch(galleryUrl);
-
-    if (galleryRes.ok) {
-      const galleryHtml = await galleryRes.text();
-      const $gallery = cheerio.load(galleryHtml);
-
-      // Each lecture is an <a> containing an <img> (YouTube thumbnail) and an <h5> (title)
-      // Thumbnail pattern: https://img.youtube.com/vi/{VIDEO_ID}/default.jpg
-      $gallery("a").each((_, el) => {
-        const $a = $gallery(el);
-        const href = $a.attr("href") ?? "";
-        const img = $a.find("img");
-        const h5 = $a.find("h5");
-
-        if (!h5.length) return;
-
-        const title = h5.text().trim();
-        if (!title) return;
-
-        // Extract YouTube ID from thumbnail src
-        const imgSrc = img.attr("src") ?? "";
-        const ytMatch = imgSrc.match(/img\.youtube\.com\/vi\/([a-zA-Z0-9_-]{11})/);
-        const youtubeId = ytMatch ? ytMatch[1] : null;
-
-        // Extract slug from href
-        const linkSlug = href.replace(/\/$/, "").split("/").pop() ?? "";
-
-        if (!lectures.some((l) => l.slug === linkSlug)) {
-          lectures.push({
-            title,
-            slug: linkSlug || `lecture-${lectures.length + 1}`,
-            youtubeId,
-            archiveUrl: null,
-            lectureNumber: extractLectureNumber(title),
-          });
-        }
-      });
-
-      console.log(`Found ${lectures.length} lectures from live gallery`);
-
-      // Fetch archive.org URLs from individual resource pages (rate-limited)
-      for (const lecture of lectures) {
-        if (!lecture.youtubeId) continue;
-        const resourceUrl = `${courseUrl}resources/${lecture.slug}/`;
-        try {
-          const res = await fetch(resourceUrl);
-          if (res.ok) {
-            const html = await res.text();
-            lecture.archiveUrl = extractArchiveUrl(html);
-          }
-        } catch {
-          // Skip — archive URL is optional
-        }
-        // Rate limit: ~2 req/sec
-        await new Promise((r) => setTimeout(r, 500));
-      }
-    } else {
-      console.log(`No video gallery found at ${galleryUrl} (${galleryRes.status}), scanning zip HTML files...`);
-      // Fallback: scan all HTML files in the zip for YouTube embeds
-      const allHtml = findFiles(contentRoot, (fp) => fp.endsWith(".html"));
-      for (const htmlFile of allHtml) {
-        const html = fs.readFileSync(htmlFile, "utf-8");
-        const $page = cheerio.load(html);
-        $page("iframe").each((_, el) => {
-          const src = $page(el).attr("src") ?? "";
-          const ytId = extractYouTubeId(src);
-          if (ytId && !lectures.some((l) => l.youtubeId === ytId)) {
-            const title = $page("h1").first().text().trim()
-              || $page("h2").first().text().trim()
-              || `Video ${lectures.length + 1}`;
-            const fileSlug = path.basename(htmlFile, ".html");
-            lectures.push({
-              title,
-              slug: fileSlug,
-              youtubeId: ytId,
-              archiveUrl: extractArchiveUrl(html),
-              lectureNumber: extractLectureNumber(title),
-            });
-          }
-        });
-      }
-    }
+  const previewCount = Math.min(12, preparedSections.length);
+  console.log(`[Stage 7] Sequenced ${preparedSections.length} sections. Preview:`);
+  for (let i = 0; i < previewCount; i++) {
+    const section = preparedSections[i];
+    console.log(`  ${i + 1}. [${section.sectionType}] ${section.title} (${section.resources.length} resources)`);
   }
 
-  // Save lectures cache for future re-runs
-  if (lectures.length > 0) {
-    fs.writeFileSync(lecturesCachePath, JSON.stringify(lectures, null, 2));
-    console.log(`Cached lecture metadata to lectures.json`);
-  }
+  console.log("[Stage 8] Persisting sections and resources to database...");
 
-  console.log(`Parsed ${lectures.length} lectures`);
-
-  // ── Classify PDFs ──
-  // Build reverse map: new filename → original filename (for guessing type from original name)
-  const reverseRenameMap = new Map<string, string>();
-  for (const [orig, renamed] of pdfRenameMap) {
-    reverseRenameMap.set(renamed, orig);
-  }
-
-  const pdfEntries: PdfEntry[] = pdfFiles.map((newFilename) => {
-    const origFilename = reverseRenameMap.get(newFilename) ?? newFilename;
-    const htmlTitle = pdfTitleMap.get(origFilename);
-    // Use HTML title if available, otherwise derive from filename
-    const title = htmlTitle ?? newFilename.replace(/\.pdf$/i, "").replace(/-/g, " ");
-    return {
-      filename: newFilename,
-      title,
-      // Guess type from original filename (has more structure) or HTML title
-      guessedType: guessPdfType(origFilename) !== "other" ? guessPdfType(origFilename) : guessPdfType(htmlTitle ?? newFilename),
-    };
-  });
-
-  // Match lecture notes PDFs by number for auto-attachment
-  const lecturePdfMap = new Map<number, string[]>();
-  for (const [origFilename, newFilename] of pdfRenameMap) {
-    const match = origFilename.match(/_lec(\d+)/i);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (!lecturePdfMap.has(num)) lecturePdfMap.set(num, []);
-      lecturePdfMap.get(num)!.push(newFilename);
-    }
-  }
-
-  // ── Extract HTML page context for LLM (before cleanup) ──
-  const htmlContext = extractHtmlPagesContext(contentRoot);
-
-  // ── LLM-powered ordering ──
-  const orderedItems = await orderCourseContent(course.title, lectures, pdfEntries, htmlContext);
-
-  // ── Build sections and resources ──
-
-  // Delete existing sections/resources for this course
   await supabase.from("resources").delete().eq("course_id", course.id);
   await supabase.from("course_sections").delete().eq("course_id", course.id);
 
-  // Create flat sections from ordered items
+  const usedSlugs = new Set<string>();
   const sectionRows: {
     course_id: number;
     title: string;
     slug: string;
     section_type: string;
     ordering: number;
-  }[] = [];
+  }[] = preparedSections.map((section, idx) => {
+    const fallbackNumber = section.weekHint ?? idx + 1;
+    const safeTitle = isBlockedSidebarTitle(section.title)
+      ? defaultSectionTitle(section.sectionType, fallbackNumber, "")
+      : section.title;
 
-  for (let i = 0; i < orderedItems.length; i++) {
-    const item = orderedItems[i];
-    const sectionType = item.type === "lecture" ? "lecture" : item.type;
-    const itemSlug =
-      item.lectureIndex !== undefined && item.lectureIndex !== null
-        ? lectures[item.lectureIndex]?.slug ?? `item-${i}`
-        : `${item.type}-${i}`;
-    sectionRows.push({
+    return {
       course_id: course.id,
-      title: item.title,
-      slug: itemSlug,
-      section_type: sectionType,
-      ordering: i,
-    });
-  }
+      title: safeTitle,
+      slug: makeUniqueSlug(section.slugBase || safeTitle, usedSlugs),
+      section_type: section.sectionType,
+      ordering: idx,
+    };
+  });
 
-  // Insert sections
-  const { data: insertedSections, error: sectionsError } = await supabase
+  const { data: insertedSections, error: sectionInsertError } = await supabase
     .from("course_sections")
     .insert(sectionRows)
-    .select("id, slug, ordering");
+    .select("id, ordering");
 
-  if (sectionsError) {
-    console.error("Error inserting sections:", sectionsError);
-    process.exit(1);
+  if (sectionInsertError) {
+    throw new Error(`Error inserting sections: ${sectionInsertError.message}`);
   }
 
-  console.log(`Inserted ${insertedSections?.length ?? 0} sections (flat interleaved)`);
-
-  // Build ordering → section ID map
-  const sectionByOrdering = new Map<number, { id: number; slug: string }>();
-  for (const s of insertedSections ?? []) {
-    sectionByOrdering.set(s.ordering, { id: s.id, slug: s.slug });
+  const sectionIdByOrdering = new Map<number, number>();
+  for (const row of insertedSections ?? []) {
+    sectionIdByOrdering.set(row.ordering, row.id);
   }
 
-  // Build filename → clean title lookup from pdfEntries
-  const pdfTitleByFilename = new Map<string, string>();
-  for (const entry of pdfEntries) {
-    pdfTitleByFilename.set(entry.filename, entry.title);
-  }
-
-  // Create resources
-  const resources: {
+  const resourceRows: {
     course_id: number;
     section_id: number | null;
     title: string;
@@ -692,91 +1571,61 @@ async function downloadCourse(slug: string) {
     archive_url: string | null;
     ordering: number;
   }[] = [];
+  const seenVideoKeys = new Set<string>();
+  let skippedDuplicateVideos = 0;
 
-  for (let i = 0; i < orderedItems.length; i++) {
-    const item = orderedItems[i];
-    const section = sectionByOrdering.get(i);
-    const sectionId = section?.id ?? null;
+  for (let i = 0; i < preparedSections.length; i++) {
+    const section = preparedSections[i];
+    const sectionId = sectionIdByOrdering.get(i) ?? null;
 
-    if (item.type === "lecture" && item.lectureIndex !== undefined && item.lectureIndex !== null) {
-      const lecture = lectures[item.lectureIndex];
-      if (!lecture) continue;
-      let ordering = 0;
+    section.resources.forEach((resource, resourceIndex) => {
+      if (resource.resourceType === "video") {
+        const videoKey = resource.youtubeId
+          ? `yt:${resource.youtubeId}`
+          : resource.archiveUrl
+            ? `arch:${resource.archiveUrl.replace(/^http:\/\//i, "https://")}`
+            : resource.videoUrl
+              ? `url:${resource.videoUrl}`
+              : `title:${slugify(resource.title)}`;
 
-      // Video resource
-      if (lecture.youtubeId || lecture.archiveUrl) {
-        resources.push({
-          course_id: course.id,
-          section_id: sectionId,
-          title: lecture.title,
-          resource_type: "video",
-          pdf_path: null,
-          video_url: lecture.youtubeId ? `https://www.youtube.com/watch?v=${lecture.youtubeId}` : null,
-          youtube_id: lecture.youtubeId,
-          archive_url: lecture.archiveUrl,
-          ordering: ordering++,
-        });
-      }
-
-      // Matched lecture notes PDFs
-      if (lecture.lectureNumber !== null) {
-        const pdfs = lecturePdfMap.get(lecture.lectureNumber) ?? [];
-        for (const pdf of pdfs) {
-          resources.push({
-            course_id: course.id,
-            section_id: sectionId,
-            title: pdfTitleByFilename.get(pdf) ?? pdf.replace(/\.pdf$/i, "").replace(/-/g, " "),
-            resource_type: "lecture_notes",
-            pdf_path:
-              pdfUrlByFilename.get(pdf) ??
-              buildStoragePublicUrl(`${STORAGE_PREFIX}/${slug}/${pdf}`),
-            video_url: null,
-            youtube_id: null,
-            archive_url: null,
-            ordering: ordering++,
-          });
+        if (seenVideoKeys.has(videoKey)) {
+          skippedDuplicateVideos++;
+          return;
         }
+        seenVideoKeys.add(videoKey);
       }
-    } else {
-      // Non-lecture item (problem set, exam, recitation, etc.)
-      const pdfFilenames = item.pdfFilenames ?? [];
-      for (let j = 0; j < pdfFilenames.length; j++) {
-        const pdf = pdfFilenames[j];
-        const isSolution = pdf.toLowerCase().includes("sol");
-        const resourceType = isSolution ? "solution" : item.type;
-        resources.push({
-          course_id: course.id,
-          section_id: sectionId,
-          title: pdfTitleByFilename.get(pdf) ?? pdf.replace(/\.pdf$/i, "").replace(/-/g, " "),
-          resource_type: resourceType,
-          pdf_path:
-            pdfUrlByFilename.get(pdf) ??
-            buildStoragePublicUrl(`${STORAGE_PREFIX}/${slug}/${pdf}`),
-          video_url: null,
-          youtube_id: null,
-          archive_url: null,
-          ordering: j,
-        });
-      }
-    }
+
+      resourceRows.push({
+        course_id: course.id,
+        section_id: sectionId,
+        title: resource.title,
+        resource_type: resource.resourceType,
+        pdf_path: resource.pdfPath,
+        video_url: resource.videoUrl,
+        youtube_id: resource.youtubeId,
+        archive_url: resource.archiveUrl,
+        ordering: resourceIndex,
+      });
+    });
   }
 
-  console.log(`Found ${resources.length} resources (${resources.filter((r) => r.resource_type === "video").length} videos, ${resources.filter((r) => r.pdf_path).length} PDFs)`);
-
-  // Insert resources
-  if (resources.length > 0) {
-    const { error: resourcesError } = await supabase
-      .from("resources")
-      .insert(resources);
-
-    if (resourcesError) {
-      console.error("Error inserting resources:", resourcesError);
-      process.exit(1);
-    }
-    console.log(`Inserted ${resources.length} resources`);
+  if (!resourceRows.length) {
+    throw new Error("Sequencing produced sections but no resources.");
   }
 
-  // Mark course as downloaded
+  const { error: resourceInsertError } = await supabase
+    .from("resources")
+    .insert(resourceRows);
+
+  if (resourceInsertError) {
+    throw new Error(`Error inserting resources: ${resourceInsertError.message}`);
+  }
+
+  console.log(`[Stage 8] Inserted ${sectionRows.length} sections and ${resourceRows.length} resources`);
+  if (skippedDuplicateVideos > 0) {
+    console.log(`[Stage 8] Skipped ${skippedDuplicateVideos} duplicate video link(s)`);
+  }
+
   const { error: updateError } = await supabase
     .from("courses")
     .update({
@@ -786,30 +1635,39 @@ async function downloadCourse(slug: string) {
     .eq("id", course.id);
 
   if (updateError) {
-    console.error("Error updating course:", updateError);
+    console.error("Error updating course download status:", updateError.message);
   }
 
-  // Clean up temp files
-  console.log("Cleaning up temp files...");
-  fs.rmSync(TMP_DIR, { recursive: true, force: true });
+  const keepTmp = process.env.MYOCW_KEEP_TMP === "1";
+  if (keepTmp) {
+    console.log(`[Stage 9] Skipping temp cleanup (MYOCW_KEEP_TMP=1): ${TMP_DIR}`);
+  } else {
+    console.log("[Stage 9] Cleaning up temp files...");
+    fs.rmSync(TMP_DIR, { recursive: true, force: true });
+  }
 
   console.log("Done!");
-  console.log(`\nSummary:`);
+  console.log("\nSummary:");
   console.log(`  Course: ${course.title}`);
-  console.log(`  Lectures: ${lectures.length}`);
-  console.log(`  Resources: ${resources.length}`);
-  console.log(`  PDFs uploaded: ${pdfCount}`);
+  console.log(`  Crawled pages: ${crawledPages.length}`);
+  console.log(`  Lecture candidates: ${lectures.length}`);
+  console.log(`  Verified resources: ${verifiedResources.size}`);
+  console.log(`  Sections persisted: ${sectionRows.length}`);
+  console.log(`  Resources persisted: ${resourceRows.length}`);
+  console.log(`  PDFs uploaded: ${uploadedPdfCount}`);
 }
 
-// Main
-const slug = process.argv[2];
-if (!slug) {
-  console.error("Usage: pnpm download-course <course-slug>");
-  console.error("Example: pnpm download-course 6-006-introduction-to-algorithms-spring-2020");
-  process.exit(1);
-}
+const __isMain = process.argv[1]?.includes("download-course");
+if (__isMain) {
+  const slug = process.argv[2];
+  if (!slug) {
+    console.error("Usage: pnpm download-course <course-slug>");
+    console.error("Example: pnpm download-course 6-006-introduction-to-algorithms-spring-2020");
+    process.exit(1);
+  }
 
-downloadCourse(slug).catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+  downloadCourse(slug).catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
+}

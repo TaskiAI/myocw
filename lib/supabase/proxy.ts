@@ -29,11 +29,13 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect /courses and /my-courses routes — redirect to login if not authenticated
+  // Protect course routes — redirect to login if not authenticated
   if (
     !user &&
     (request.nextUrl.pathname.startsWith("/courses") ||
-      request.nextUrl.pathname.startsWith("/my-courses"))
+      request.nextUrl.pathname.startsWith("/my-courses") ||
+      request.nextUrl.pathname.startsWith("/curricula") ||
+      request.nextUrl.pathname.startsWith("/account"))
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

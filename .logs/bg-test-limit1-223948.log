@@ -1,0 +1,18 @@
+
+> myocw@0.1.0 download-video-catalog /Users/arda/Projects/myocw
+> tsx --env-file=.env.local scripts/download-video-catalog.ts --limit 1
+
+=== Video Catalog Downloader ===
+include-downloaded=false
+offset=0
+limit=1
+Queued 1 video course(s)
+
+[1/1] Downloading: Brains, Minds and Machines Summer Course
+  id=3331 slug=res-9-003-brains-minds-and-machines-summer-course-summer-2015
+Looking up course with slug: res-9-003-brains-minds-and-machines-summer-course-summer-2015
+Found course: Brains, Minds and Machines Summer Course (id: 3331)
+URL: https://ocw.mit.edu/courses/res-9-003-brains-minds-and-machines-summer-course-summer-2015/
+[Stage 0] Fetching download page: https://ocw.mit.edu/courses/res-9-003-brains-minds-and-machines-summer-course-summer-2015/download
+[Stage 0] Zip URL: https://ocw.mit.edu/courses/res-9-003-brains-minds-and-machines-summer-course-summer-2015/res.9-003-summer-2015.zip
+[Stage 0] Downloading zip...

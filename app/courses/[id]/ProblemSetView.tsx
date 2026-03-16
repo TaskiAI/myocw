@@ -1,42 +1,84 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Problem, UserProblemAttempt } from "@/lib/types/course-content";
 import type { Resource } from "@/lib/types/course-content";
 import { getProblemAttempts } from "@/lib/queries/problem-progress";
+import {
+  createCourseProblem,
+  deleteCourseProblem,
+  updateCourseProblem,
+} from "@/lib/queries/problem-editor";
 import ProblemCard from "./ProblemCard";
 
 interface Props {
   problems: Problem[];
   pdfResources: Resource[];
   courseId: number;
+  canEdit?: boolean;
+  defaultProblemResourceId?: number | null;
+  onProblemAttempted?: (problemId: number) => void;
 }
 
-function pillColor(attempt: UserProblemAttempt | undefined): string {
-  if (!attempt) return "bg-zinc-100 text-zinc-600 border-zinc-200";
+function pillIcon(attempt: UserProblemAttempt | undefined): string | null {
+  if (!attempt) return null;
   switch (attempt.self_grade) {
     case "correct":
-      return "bg-green-100 text-green-800 border-green-300";
+      return "\u2713"; // ✓
     case "partially_correct":
-      return "bg-yellow-100 text-yellow-800 border-yellow-300";
+      return "~";
     case "incorrect":
-      return "bg-red-100 text-red-800 border-red-300";
+      return "\u2717"; // ✗
     case "unsure":
-      return "bg-zinc-200 text-zinc-700 border-zinc-400";
+      return "?";
     default:
-      return "bg-zinc-100 text-zinc-600 border-zinc-200";
+      return null;
   }
 }
 
-export default function ProblemSetView({ problems, pdfResources, courseId }: Props) {
+function sortProblems(items: Problem[]): Problem[] {
+  return [...items].sort((left, right) => {
+    if (left.ordering !== right.ordering) return left.ordering - right.ordering;
+    return left.id - right.id;
+  });
+}
+
+export default function ProblemSetView({
+  problems,
+  pdfResources,
+  courseId,
+  canEdit = false,
+  defaultProblemResourceId = null,
+  onProblemAttempted,
+}: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [attempts, setAttempts] = useState<Map<number, UserProblemAttempt>>(new Map());
   const [showPdf, setShowPdf] = useState(false);
   const [activePdfUrl, setActivePdfUrl] = useState<string | null>(null);
+  const [editableProblems, setEditableProblems] = useState<Problem[]>(() => sortProblems(problems));
+  const [editingProblemId, setEditingProblemId] = useState<number | null>(null);
+  const [draftLabel, setDraftLabel] = useState("");
+  const [draftQuestionText, setDraftQuestionText] = useState("");
+  const [draftSolutionText, setDraftSolutionText] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isAddingProblem, setIsAddingProblem] = useState(false);
+  const [isDeletingProblem, setIsDeletingProblem] = useState(false);
+  const [editorMessage, setEditorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getProblemAttempts(courseId).then(setAttempts);
   }, [courseId]);
+
+  useEffect(() => {
+    setEditableProblems(sortProblems(problems));
+  }, [problems]);
+
+  useEffect(() => {
+    setActiveIndex((currentIndex) => {
+      if (editableProblems.length === 0) return 0;
+      return Math.min(currentIndex, editableProblems.length - 1);
+    });
+  }, [editableProblems.length]);
 
   const handleAttemptSubmitted = useCallback(
     (problemId: number, attempt: UserProblemAttempt) => {
@@ -45,53 +87,280 @@ export default function ProblemSetView({ problems, pdfResources, courseId }: Pro
         next.set(problemId, attempt);
         return next;
       });
+      onProblemAttempted?.(problemId);
     },
-    []
+    [onProblemAttempted]
   );
 
-  const activeProblem = problems[activeIndex];
-  if (!activeProblem) return null;
+  const activeProblem = editableProblems[activeIndex] ?? null;
 
-  const completedCount = problems.filter((p) => attempts.has(p.id)).length;
+  const completedCount = editableProblems.filter((problem) => attempts.has(problem.id)).length;
+  const fallbackResourceId = useMemo(
+    () => activeProblem?.resource_id ?? defaultProblemResourceId ?? null,
+    [activeProblem, defaultProblemResourceId]
+  );
+  const isEditingActiveProblem = editingProblemId === activeProblem?.id;
+
+  function beginEditing(problem: Problem) {
+    setEditingProblemId(problem.id);
+    setDraftLabel(problem.problem_label);
+    setDraftQuestionText(problem.question_text);
+    setDraftSolutionText(problem.solution_text ?? "");
+    setEditorMessage(null);
+  }
+
+  function cancelEditing() {
+    setEditingProblemId(null);
+    setDraftLabel("");
+    setDraftQuestionText("");
+    setDraftSolutionText("");
+    setEditorMessage(null);
+  }
+
+  async function handleSaveProblemEdits() {
+    if (!activeProblem || !isEditingActiveProblem || isSavingEdit) return;
+
+    setIsSavingEdit(true);
+    setEditorMessage("Saving edits...");
+
+    const savedProblem = await updateCourseProblem(
+      activeProblem.id,
+      {
+        problemLabel: draftLabel,
+        questionText: draftQuestionText,
+        solutionText: draftSolutionText,
+      },
+      activeProblem.ordering
+    );
+
+    setIsSavingEdit(false);
+
+    if (!savedProblem) {
+      setEditorMessage("Could not save edits. Check the dev account session and RLS policy.");
+      return;
+    }
+
+    setEditableProblems((currentProblems) =>
+      sortProblems(
+        currentProblems.map((problem) =>
+          problem.id === savedProblem.id ? savedProblem : problem
+        )
+      )
+    );
+    setEditorMessage("Saved problem changes.");
+    setEditingProblemId(null);
+  }
+
+  async function handleAddProblem() {
+    if (isAddingProblem || fallbackResourceId === null) return;
+
+    setIsAddingProblem(true);
+    setEditorMessage("Adding question...");
+
+    const nextOrdering = editableProblems.length
+      ? Math.max(...editableProblems.map((problem) => problem.ordering)) + 1
+      : 0;
+
+    const createdProblem = await createCourseProblem({
+      courseId,
+      resourceId: fallbackResourceId,
+      problemLabel: `Problem ${editableProblems.length + 1}`,
+      questionText: "",
+      solutionText: null,
+      ordering: nextOrdering,
+    });
+
+    setIsAddingProblem(false);
+
+    if (!createdProblem) {
+      setEditorMessage("Could not add question. Check the dev account session and RLS policy.");
+      return;
+    }
+
+    const nextProblems = sortProblems([...editableProblems, createdProblem]);
+    const nextIndex = nextProblems.findIndex((problem) => problem.id === createdProblem.id);
+
+    setEditableProblems(nextProblems);
+    setActiveIndex(nextIndex >= 0 ? nextIndex : nextProblems.length - 1);
+    beginEditing(createdProblem);
+    setEditorMessage("New question added. Fill in the prompt and solution, then save.");
+  }
+
+  async function handleDeleteProblem() {
+    if (!activeProblem || isDeletingProblem) return;
+
+    const confirmed = window.confirm(
+      `Delete ${activeProblem.problem_label || `Problem ${activeIndex + 1}`}?`
+    );
+    if (!confirmed) return;
+
+    setIsDeletingProblem(true);
+    setEditorMessage("Deleting question...");
+
+    const deleted = await deleteCourseProblem(activeProblem.id);
+    setIsDeletingProblem(false);
+
+    if (!deleted) {
+      setEditorMessage("Could not delete question. Check the dev account session and RLS policy.");
+      return;
+    }
+
+    const nextProblems = editableProblems.filter(
+      (problem) => problem.id !== activeProblem.id
+    );
+
+    setEditableProblems(nextProblems);
+    setActiveIndex((currentIndex) =>
+      nextProblems.length === 0
+        ? 0
+        : Math.max(0, Math.min(currentIndex - 1, nextProblems.length - 1))
+    );
+    cancelEditing();
+    setEditorMessage("Question deleted.");
+  }
+
+  if (!activeProblem && !canEdit) return null;
 
   return (
     <div>
       {/* Progress summary */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-zinc-500">
-          {completedCount} of {problems.length} attempted
+          {completedCount} of {editableProblems.length} attempted
         </p>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            {editorMessage && (
+              <span className="text-xs text-zinc-500">{editorMessage}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                void handleAddProblem();
+              }}
+              disabled={isAddingProblem || fallbackResourceId === null}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {isAddingProblem ? "Adding..." : "Add question"}
+            </button>
+            {activeProblem && !isEditingActiveProblem && (
+              <button
+                type="button"
+                onClick={() => beginEditing(activeProblem)}
+                className="rounded-lg bg-[#750014] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#5a0010]"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {!activeProblem && canEdit && (
+        <div className="mb-4 rounded-xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600">
+          No questions yet for this resource. Use “Add question” to create the first one.
+        </div>
+      )}
 
       {/* Problem nav strip */}
       <div className="mb-4 flex flex-wrap gap-1.5">
-        {problems.map((problem, i) => {
+        {editableProblems.map((problem, i) => {
           const attempt = attempts.get(problem.id);
           const isActive = i === activeIndex;
+          const icon = pillIcon(attempt);
           return (
             <button
               key={problem.id}
               type="button"
               onClick={() => setActiveIndex(i)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-medium transition-colors ${
-                isActive
-                  ? "ring-2 ring-[#750014] ring-offset-1"
-                  : ""
-              } ${pillColor(attempt)}`}
+              className={`flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white px-2 text-xs font-medium transition-colors whitespace-nowrap ${
+                isActive ? "ring-2 ring-[#750014] ring-offset-1" : ""
+              }`}
             >
-              {problem.problem_label}
+              <span className="text-zinc-600">{i + 1}</span>
+              {icon && (
+                <span className="ml-1 text-[10px] text-zinc-500">{icon}</span>
+              )}
             </button>
           );
         })}
       </div>
 
+      {canEdit && activeProblem && isEditingActiveProblem && (
+        <div className="mb-4 rounded-xl border border-[#750014]/20 bg-[#750014]/5 p-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-sm font-medium text-zinc-700">Question label</span>
+              <input
+                value={draftLabel}
+                onChange={(event) => setDraftLabel(event.target.value)}
+                placeholder={`Problem ${activeIndex + 1}`}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-700">Problem text</span>
+              <textarea
+                value={draftQuestionText}
+                onChange={(event) => setDraftQuestionText(event.target.value)}
+                rows={8}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-zinc-700">Solution</span>
+              <textarea
+                value={draftSolutionText}
+                onChange={(event) => setDraftSolutionText(event.target.value)}
+                rows={8}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void handleSaveProblemEdits();
+              }}
+              disabled={isSavingEdit}
+              className="rounded-lg bg-[#750014] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5a0010] disabled:opacity-60"
+            >
+              {isSavingEdit ? "Saving..." : "Save changes"}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditing}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleDeleteProblem();
+              }}
+              disabled={isDeletingProblem}
+              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+            >
+              {isDeletingProblem ? "Deleting..." : "Delete question"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Active problem card */}
-      <ProblemCard
-        key={activeProblem.id}
-        problem={activeProblem}
-        existingAttempt={attempts.get(activeProblem.id)}
-        onAttemptSubmitted={handleAttemptSubmitted}
-      />
+      {activeProblem && (
+        <ProblemCard
+          key={`${activeProblem.id}-${attempts.get(activeProblem.id)?.attempted_at ?? "new"}`}
+          problem={activeProblem}
+          existingAttempt={attempts.get(activeProblem.id)}
+          onAttemptSubmitted={handleAttemptSubmitted}
+        />
+      )}
 
       {/* Prev / Next */}
       <div className="mt-4 flex items-center justify-between">
@@ -107,12 +376,12 @@ export default function ProblemSetView({ problems, pdfResources, courseId }: Pro
           Previous
         </button>
         <span className="text-sm text-zinc-400">
-          {activeIndex + 1} / {problems.length}
+          {editableProblems.length === 0 ? 0 : activeIndex + 1} / {editableProblems.length}
         </span>
         <button
           type="button"
-          onClick={() => setActiveIndex((i) => Math.min(problems.length - 1, i + 1))}
-          disabled={activeIndex === problems.length - 1}
+          onClick={() => setActiveIndex((i) => Math.min(editableProblems.length - 1, i + 1))}
+          disabled={editableProblems.length === 0 || activeIndex === editableProblems.length - 1}
           className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none"
         >
           Next

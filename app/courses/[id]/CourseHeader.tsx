@@ -8,6 +8,19 @@ interface Props {
   onContinueCourse?: () => void;
 }
 
+function formatCourseReadableId(readableId: string): string {
+  const [base, rawTerm] = readableId.split("+");
+  const cleanBase = (base ?? readableId).replace(/_/g, " ").trim();
+  if (!rawTerm) return cleanBase;
+
+  const termMatch = rawTerm.trim().match(/^([a-zA-Z]+)[_\-]?(\d{4})$/);
+  if (!termMatch) return `${cleanBase}, ${rawTerm.replace(/_/g, " ").trim()}`;
+
+  const [, termName, year] = termMatch;
+  const normalizedTerm = termName.charAt(0).toUpperCase() + termName.slice(1).toLowerCase();
+  return `${cleanBase}, ${normalizedTerm} ${year}`;
+}
+
 export default function CourseHeader({ course, showContinueButton, onContinueCourse }: Props) {
   const department = course.departments?.[0]?.name ?? null;
   const run = course.runs?.[0];
@@ -16,6 +29,7 @@ export default function CourseHeader({ course, showContinueButton, onContinueCou
     ?.flatMap((r) => r.level?.map((l) => l.name) ?? [])
     .filter((v, i, a) => a.indexOf(v) === i);
   const instructors = run?.instructors?.map((i) => i.full_name) ?? [];
+  const displayCourseNumber = formatCourseReadableId(course.readable_id);
 
   return (
     <div>
@@ -30,21 +44,8 @@ export default function CourseHeader({ course, showContinueButton, onContinueCou
       </Link>
 
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
-        {course.image_url && (
-          <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-xl md:w-72">
-            <Image
-              src={course.image_url}
-              alt={course.image_alt ?? course.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 288px"
-              priority
-            />
-          </div>
-        )}
-
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-[#750014]">{course.readable_id}</p>
+        <div className="flex flex-1 flex-col gap-2">
+          <p className="text-sm font-medium text-[#750014]">{displayCourseNumber}</p>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
             {course.title}
           </h1>
@@ -80,17 +81,50 @@ export default function CourseHeader({ course, showContinueButton, onContinueCou
             </p>
           )}
 
-          {showContinueButton && onContinueCourse && (
-            <button
-              onClick={onContinueCourse}
-              className="mt-4 inline-flex w-fit items-center gap-2 rounded-lg bg-[#750014] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5a0010]"
-            >
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              Continue Course
-            </button>
-          )}
+        </div>
+
+        {(course.image_url || (showContinueButton && onContinueCourse)) && (
+          <div className="flex w-full shrink-0 flex-col gap-3 md:w-72">
+            {course.image_url && (
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl">
+                <Image
+                  src={course.image_url}
+                  alt={course.image_alt ?? course.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 288px"
+                  priority
+                />
+              </div>
+            )}
+
+            {showContinueButton && onContinueCourse && (
+              <button
+                onClick={onContinueCourse}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#750014] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5a0010]"
+              >
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                Resume Course
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 grid w-full gap-3 text-sm text-zinc-600 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <p className="font-semibold text-zinc-800">Prerequisites</p>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <p className="font-semibold text-zinc-800">Reviews</p>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <p className="font-semibold text-zinc-800">Difficulty</p>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <p className="font-semibold text-zinc-800">Resource Type</p>
         </div>
       </div>
     </div>

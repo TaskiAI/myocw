@@ -8,7 +8,7 @@ interface ActivityRow {
 
 interface ProgressRow {
   completed_at: string | null;
-  resources: { course_id: number } | null;
+  resources: { course_id: number }[] | null;
 }
 
 interface VideoCountRow {
@@ -31,7 +31,7 @@ export async function getMyCourses(): Promise<{
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { userId: null, courses: [] };
+    return { userId: null, courses: [], progress: new Map() };
   }
 
   const [{ data: activity, error: activityError }, { data: progress, error: progressError }] =
@@ -67,7 +67,7 @@ export async function getMyCourses(): Promise<{
   }
 
   for (const row of (progress ?? []) as ProgressRow[]) {
-    const courseId = row.resources?.course_id;
+    const courseId = row.resources?.[0]?.course_id;
     if (!courseId) continue;
     if (row.completed_at) {
       const prev = lastSeenByCourse.get(courseId);
@@ -102,7 +102,7 @@ export async function getMyCourses(): Promise<{
   // Build completed count per course from progress rows
   const completedByCourse = new Map<number, number>();
   for (const row of (progress ?? []) as ProgressRow[]) {
-    const courseId = row.resources?.course_id;
+    const courseId = row.resources?.[0]?.course_id;
     if (!courseId) continue;
     completedByCourse.set(courseId, (completedByCourse.get(courseId) ?? 0) + 1);
   }

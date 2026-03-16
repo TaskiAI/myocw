@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Problem, SelfGrade, UserProblemAttempt } from "@/lib/types/course-content";
 import { submitProblemAttempt } from "@/lib/queries/problem-progress";
+import MathText from "@/app/components/MathText";
 
 interface Props {
   problem: Problem;
@@ -18,6 +19,8 @@ const GRADE_OPTIONS: { value: SelfGrade; label: string; color: string }[] = [
   { value: "incorrect", label: "Incorrect", color: "bg-red-100 text-red-800 border-red-300" },
   { value: "unsure", label: "Unsure", color: "bg-zinc-100 text-zinc-700 border-zinc-300" },
 ];
+const MATH_CONTENT_CLASS =
+  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words overflow-x-auto";
 
 function gradeBadge(grade: SelfGrade) {
   const option = GRADE_OPTIONS.find((o) => o.value === grade);
@@ -74,8 +77,8 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
 
       {/* Problem text */}
       <div className="px-6 py-4">
-        <div className="prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap">
-          {problem.question_text}
+        <div className={MATH_CONTENT_CLASS}>
+          <MathText>{problem.question_text}</MathText>
         </div>
       </div>
 
@@ -115,14 +118,20 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
             </div>
 
             {/* Solution */}
-            {problem.solution_text && (
-              <div className="mb-4">
-                <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
-                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap">
-                  {problem.solution_text}
+            <div className="mb-4">
+              <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
+              {problem.solution_text ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                  <div className={MATH_CONTENT_CLASS}>
+                    <MathText>{problem.solution_text}</MathText>
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                  sorry, solutions are not available at this point
+                </div>
+              )}
+            </div>
 
             {/* Self-grade buttons */}
             <p className="mb-2 text-sm font-medium text-zinc-700">How did you do?</p>
@@ -153,14 +162,20 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
             </div>
 
             {/* Solution */}
-            {problem.solution_text && (
-              <div className="mb-4">
-                <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
-                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap">
-                  {problem.solution_text}
+            <div className="mb-4">
+              <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
+              {problem.solution_text ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                  <div className={MATH_CONTENT_CLASS}>
+                    <MathText>{problem.solution_text}</MathText>
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                  sorry, solutions are not available at this point
+                </div>
+              )}
+            </div>
 
             <button
               type="button"

@@ -12,7 +12,7 @@ OCW content is licensed under CC BY-NC-SA 4.0, so we can use it freely with attr
 
 - [x] **Step 1** — Course catalogue ingested (2,580 courses in Supabase via MIT Learn API)
 - [x] **Step 1b** — Course browser UI (`/courses` page with search, filters, pagination)
-- [x] **Auth** — Email/password auth via Supabase (login, signup, session middleware)
+- [x] **Auth** — Email/password auth via Supabase (login, signup, session proxy)
 - [x] **Step 2** — Download + extract course zips (syllabus, videos, problem sets)
 - [x] **Step 4** — Individual course pages with embedded content (`/courses/[id]`)
 - [x] **Step 5a** — Video progress tracking (auto-complete via YouTube IFrame API at 80% or video end)
@@ -26,14 +26,14 @@ OCW content is licensed under CC BY-NC-SA 4.0, so we can use it freely with attr
 
 - **Frontend:** Next.js (App Router), Tailwind CSS, Instrument Sans font
 - **Database:** Supabase (Postgres)
-- **Auth:** Supabase Auth (email/password), session managed via middleware
+- **Auth:** Supabase Auth (email/password), session managed via proxy
 - **Ingestion scripts:** Python (`scripts/` directory)
 - **URL-driven state:** Course browser uses URL search params as single source of truth — server components read params, client components update them via `router.push`
 
 ### Key files
 - `lib/supabase/server.ts` — server-side Supabase client
 - `lib/supabase/client.ts` — browser-side Supabase client
-- `lib/supabase/middleware.ts` — session refresh middleware
+- `lib/supabase/proxy.ts` — session refresh proxy
 - `lib/queries/courses.ts` — course query builder (search, filter, paginate)
 - `lib/queries/course-content.ts` — course sections + resources queries
 - `lib/queries/video-progress.ts` — client-side video progress helpers (getVideoProgress, markVideoCompleted)
