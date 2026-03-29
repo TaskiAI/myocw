@@ -8,11 +8,12 @@ interface ActivityRow {
 
 interface ProgressRow {
   completed_at: string | null;
-  resources: { course_id: number }[] | null;
+  resources: { course_id: number; section_id: number | null }[] | null;
 }
 
-interface VideoCountRow {
+interface VideoSectionRow {
   course_id: number;
+  section_id: number | null;
 }
 
 export interface CourseProgress {
@@ -42,7 +43,7 @@ export async function getMyCourses(): Promise<{
         .eq("user_id", user.id),
       supabase
         .from("user_video_progress")
-        .select("completed_at, resources!inner(course_id)")
+        .select("completed_at, resources!inner(course_id, section_id)")
         .eq("user_id", user.id)
         .eq("completed", true),
     ]);
@@ -84,12 +85,12 @@ export async function getMyCourses(): Promise<{
     return { userId: user.id, courses: [], progress: new Map() };
   }
 
-  const [{ data: courses, error: coursesError }, { data: videoTotals, error: videoTotalsError }] =
+  const [{ data: courses, error: coursesError }, { data: videoSections, error: videoSectionsError }] =
     await Promise.all([
       supabase.from("courses").select("*").in("id", courseIds),
       supabase
         .from("resources")
-        .select("course_id")
+        .select("course_id, section_id")
         .eq("resource_type", "video")
         .in("course_id", courseIds),
     ]);
@@ -99,31 +100,34 @@ export async function getMyCourses(): Promise<{
     return { userId: user.id, courses: [], progress: new Map() };
   }
 
-  // Build completed count per course from progress rows
-  const completedByCourse = new Map<number, number>();
+  // Count unique sections with videos per course (section-based total)
+  const totalSectionsByCourse = new Map<number, Set<number>>();
+  for (const row of (videoSections ?? []) as VideoSectionRow[]) {
+    if (!row.course_id || row.section_id == null) continue;
+    if (!totalSectionsByCourse.has(row.course_id)) totalSectionsByCourse.set(row.course_id, new Set());
+    totalSectionsByCourse.get(row.course_id)!.add(row.section_id);
+  }
+
+  // Count unique sections with completed videos per course
+  const completedSectionsByCourse = new Map<number, Set<number>>();
   for (const row of (progress ?? []) as ProgressRow[]) {
     const courseId = row.resources?.[0]?.course_id;
-    if (!courseId) continue;
-    completedByCourse.set(courseId, (completedByCourse.get(courseId) ?? 0) + 1);
+    const sectionId = row.resources?.[0]?.section_id;
+    if (!courseId || sectionId == null) continue;
+    if (!completedSectionsByCourse.has(courseId)) completedSectionsByCourse.set(courseId, new Set());
+    completedSectionsByCourse.get(courseId)!.add(sectionId);
   }
 
-  // Build total video count per course
-  const totalByCourse = new Map<number, number>();
-  for (const row of (videoTotals ?? []) as VideoCountRow[]) {
-    if (!row.course_id) continue;
-    totalByCourse.set(row.course_id, (totalByCourse.get(row.course_id) ?? 0) + 1);
-  }
-
-  if (videoTotalsError) {
-    console.error("Error fetching video totals:", videoTotalsError);
+  if (videoSectionsError) {
+    console.error("Error fetching video sections:", videoSectionsError);
   }
 
   const progressMap = new Map<number, CourseProgress>();
   for (const courseId of courseIds) {
-    const total = totalByCourse.get(courseId) ?? 0;
+    const total = totalSectionsByCourse.get(courseId)?.size ?? 0;
     if (total > 0) {
       progressMap.set(courseId, {
-        completed: completedByCourse.get(courseId) ?? 0,
+        completed: completedSectionsByCourse.get(courseId)?.size ?? 0,
         total,
       });
     }

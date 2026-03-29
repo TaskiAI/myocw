@@ -6,6 +6,8 @@ interface Props {
   course: Course;
   showContinueButton?: boolean;
   onContinueCourse?: () => void;
+  problemStats?: { total: number; attempted: number; correct: number } | null;
+  lectureCount?: number;
 }
 
 function formatCourseReadableId(readableId: string): string {
@@ -21,7 +23,12 @@ function formatCourseReadableId(readableId: string): string {
   return `${cleanBase}, ${normalizedTerm} ${year}`;
 }
 
-export default function CourseHeader({ course, showContinueButton, onContinueCourse }: Props) {
+export default function CourseHeader({
+  course,
+  showContinueButton,
+  onContinueCourse,
+  lectureCount,
+}: Props) {
   const department = course.departments?.[0]?.name ?? null;
   const run = course.runs?.[0];
   const semester = run ? `${run.semester ?? ""} ${run.year ?? ""}`.trim() : null;
@@ -35,7 +42,7 @@ export default function CourseHeader({ course, showContinueButton, onContinueCou
     <div>
       <Link
         href="/courses"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-900"
+        className="mb-6 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -43,90 +50,128 @@ export default function CourseHeader({ course, showContinueButton, onContinueCou
         All Courses
       </Link>
 
-      <div className="flex flex-col gap-6 md:flex-row md:items-start">
-        <div className="flex flex-1 flex-col gap-2">
-          <p className="text-sm font-medium text-[#750014]">{displayCourseNumber}</p>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
-            {course.title}
-          </h1>
+      <section className="relative w-full overflow-hidden">
+        <div className="flex flex-col gap-12 md:flex-row md:items-start">
+          {/* Left column */}
+          <div className="flex-1 space-y-8">
+            <div className="space-y-4">
+              {department && (
+                <span className="text-xs font-bold uppercase tracking-widest text-[#810020]">
+                  {department}
+                </span>
+              )}
+              <h1 className="text-4xl font-black leading-tight tracking-tighter text-[#191c1d] dark:text-zinc-100 md:text-5xl lg:text-6xl">
+                {course.title}
+              </h1>
+              {course.description && (
+                <div
+                  className="course-description max-w-2xl text-lg leading-relaxed text-[#594141] dark:text-zinc-400"
+                  dangerouslySetInnerHTML={{ __html: course.description }}
+                />
+              )}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-            {department && <span>{department}</span>}
-            {department && semester && <span>·</span>}
-            {semester && <span>{semester}</span>}
+            {/* CTA buttons */}
+            <div className="flex flex-wrap gap-4">
+              {showContinueButton && onContinueCourse && (
+                <button
+                  onClick={onContinueCourse}
+                  className="group inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#810020] to-[#a31f34] px-8 py-4 font-bold text-white transition-opacity hover:opacity-90"
+                >
+                  Resume Course
+                  <svg
+                    className="h-5 w-5 transition-transform group-hover:translate-x-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </button>
+              )}
+              {course.url && (
+                <a
+                  href={course.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-lg bg-[#e7e8e9] px-8 py-4 font-bold text-[#191c1d] transition-colors hover:bg-[#e1e3e4] dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                >
+                  View on MIT OCW
+                </a>
+              )}
+            </div>
+
+            {/* Metadata strip */}
+            <div className="grid grid-cols-3 gap-8 border-t border-[#e0bfbf]/20 pt-8">
+              {levels.length > 0 && (
+                <div>
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    Level
+                  </span>
+                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                    {levels.join(", ")}
+                  </span>
+                </div>
+              )}
+              {semester && (
+                <div>
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    Semester
+                  </span>
+                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                    {semester}
+                  </span>
+                </div>
+              )}
+              {typeof lectureCount === "number" && lectureCount > 0 && (
+                <div>
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    Lectures
+                  </span>
+                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                    {lectureCount}
+                  </span>
+                </div>
+              )}
+              {instructors.length > 0 && (
+                <div>
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    Instructors
+                  </span>
+                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                    {instructors.length}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {levels.length > 0 && (
-            <div className="flex gap-2">
-              {levels.map((level) => (
-                <span
-                  key={level}
-                  className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600"
-                >
-                  {level}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {instructors.length > 0 && (
-            <p className="text-sm text-zinc-500">
-              {instructors.join(", ")}
-            </p>
-          )}
-
-          {course.description && (
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-              {course.description}
-            </p>
-          )}
-
-        </div>
-
-        {(course.image_url || (showContinueButton && onContinueCourse)) && (
-          <div className="flex w-full shrink-0 flex-col gap-3 md:w-72">
-            {course.image_url && (
-              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl">
+          {/* Right column — course image */}
+          {course.image_url && (
+            <div className="w-full max-w-sm flex-shrink-0">
+              <div className="group relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl">
                 <Image
                   src={course.image_url}
                   alt={course.image_alt ?? course.title}
                   fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 288px"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                   priority
                 />
+                <div className="absolute inset-0 bg-[#810020]/10 mix-blend-multiply" />
+                {(semester || displayCourseNumber) && (
+                  <div className="absolute bottom-6 left-6 right-6 rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-xl">
+                    <span className="text-sm font-medium text-white">
+                      {[semester, displayCourseNumber].filter(Boolean).join(" \u2022 ")}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-
-            {showContinueButton && onContinueCourse && (
-              <button
-                onClick={onContinueCourse}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#750014] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5a0010]"
-              >
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Resume Course
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 grid w-full gap-3 text-sm text-zinc-600 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="font-semibold text-zinc-800">Prerequisites</p>
+            </div>
+          )}
         </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="font-semibold text-zinc-800">Reviews</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="font-semibold text-zinc-800">Difficulty</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="font-semibold text-zinc-800">Resource Type</p>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   createCourseProblem,
   deleteCourseProblem,
   updateCourseProblem,
-} from "@/lib/queries/problem-editor";
+} from "@/lib/actions/problem-editor";
 import ProblemCard from "./ProblemCard";
 
 interface Props {
@@ -225,7 +225,7 @@ export default function ProblemSetView({
     <div>
       {/* Progress summary */}
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {completedCount} of {editableProblems.length} attempted
         </p>
         {canEdit && (
@@ -239,7 +239,7 @@ export default function ProblemSetView({
                 void handleAddProblem();
               }}
               disabled={isAddingProblem || fallbackResourceId === null}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 disabled:pointer-events-none disabled:opacity-50"
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 disabled:pointer-events-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
             >
               {isAddingProblem ? "Adding..." : "Add question"}
             </button>
@@ -257,7 +257,7 @@ export default function ProblemSetView({
       </div>
 
       {!activeProblem && canEdit && (
-        <div className="mb-4 rounded-xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600">
+        <div className="mb-4 rounded-xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
           No questions yet for this resource. Use “Add question” to create the first one.
         </div>
       )}
@@ -273,13 +273,13 @@ export default function ProblemSetView({
               key={problem.id}
               type="button"
               onClick={() => setActiveIndex(i)}
-              className={`flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white px-2 text-xs font-medium transition-colors whitespace-nowrap ${
-                isActive ? "ring-2 ring-[#750014] ring-offset-1" : ""
+              className={`flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white px-2 text-xs font-medium transition-colors whitespace-nowrap dark:border-zinc-700 dark:bg-zinc-900 ${
+                isActive ? "ring-2 ring-[#750014] ring-offset-1 dark:ring-offset-zinc-950" : ""
               }`}
             >
-              <span className="text-zinc-600">{i + 1}</span>
+              <span className="text-zinc-600 dark:text-zinc-400">{i + 1}</span>
               {icon && (
-                <span className="ml-1 text-[10px] text-zinc-500">{icon}</span>
+                <span className="ml-1 text-[10px] text-zinc-500 dark:text-zinc-500">{icon}</span>
               )}
             </button>
           );
@@ -290,32 +290,32 @@ export default function ProblemSetView({
         <div className="mb-4 rounded-xl border border-[#750014]/20 bg-[#750014]/5 p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 md:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">Question label</span>
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Question label</span>
               <input
                 value={draftLabel}
                 onChange={(event) => setDraftLabel(event.target.value)}
                 placeholder={`Problem ${activeIndex + 1}`}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
             </label>
 
             <label className="space-y-2">
-              <span className="text-sm font-medium text-zinc-700">Problem text</span>
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Problem text</span>
               <textarea
                 value={draftQuestionText}
                 onChange={(event) => setDraftQuestionText(event.target.value)}
                 rows={8}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
             </label>
 
             <label className="space-y-2">
-              <span className="text-sm font-medium text-zinc-700">Solution</span>
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Solution</span>
               <textarea
                 value={draftSolutionText}
                 onChange={(event) => setDraftSolutionText(event.target.value)}
                 rows={8}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
             </label>
           </div>
@@ -334,7 +334,7 @@ export default function ProblemSetView({
             <button
               type="button"
               onClick={cancelEditing}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Cancel
             </button>
@@ -344,7 +344,7 @@ export default function ProblemSetView({
                 void handleDeleteProblem();
               }}
               disabled={isDeletingProblem}
-              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-950/30"
             >
               {isDeletingProblem ? "Deleting..." : "Delete question"}
             </button>
@@ -368,21 +368,21 @@ export default function ProblemSetView({
           type="button"
           onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
           disabled={activeIndex === 0}
-          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none"
+          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
           Previous
         </button>
-        <span className="text-sm text-zinc-400">
+        <span className="text-sm text-zinc-400 dark:text-zinc-500">
           {editableProblems.length === 0 ? 0 : activeIndex + 1} / {editableProblems.length}
         </span>
         <button
           type="button"
           onClick={() => setActiveIndex((i) => Math.min(editableProblems.length - 1, i + 1))}
           disabled={editableProblems.length === 0 || activeIndex === editableProblems.length - 1}
-          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none"
+          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
           Next
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -393,11 +393,11 @@ export default function ProblemSetView({
 
       {/* View Original PDF */}
       {pdfResources.length > 0 && (
-        <div className="mt-6 border-t border-zinc-200 pt-4">
+        <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-700">
           <button
             type="button"
             onClick={() => setShowPdf(!showPdf)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900"
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
             <svg
               className={`h-4 w-4 transition-transform ${showPdf ? "rotate-90" : ""}`}
@@ -413,10 +413,10 @@ export default function ProblemSetView({
 
           {showPdf && (
             <div className="mt-3">
-              <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
+              <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-700 dark:bg-zinc-900">
                 {pdfResources.map((resource) => (
                   <li key={resource.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className="shrink-0 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+                    <span className="shrink-0 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                       {resource.resource_type === "solution"
                         ? "Solution"
                         : resource.resource_type === "problem_set"
@@ -425,7 +425,7 @@ export default function ProblemSetView({
                         ? "Exam"
                         : "File"}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-zinc-900">
+                    <span className="min-w-0 flex-1 truncate text-sm text-zinc-900 dark:text-zinc-100">
                       {resource.title}
                     </span>
                     {resource.pdf_path && (
@@ -436,7 +436,7 @@ export default function ProblemSetView({
                             activePdfUrl === resource.pdf_path ? null : resource.pdf_path
                           )
                         }
-                        className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                       >
                         {activePdfUrl === resource.pdf_path ? "Hide" : "View PDF"}
                       </button>
@@ -446,22 +446,22 @@ export default function ProblemSetView({
               </ul>
 
               {activePdfUrl && (
-                <div className="mt-3 overflow-hidden rounded-xl border border-zinc-200 bg-white">
-                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
-                    <span className="text-sm font-medium text-zinc-700">PDF Preview</span>
+                <div className="mt-3 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-700">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">PDF Preview</span>
                     <div className="flex items-center gap-2">
                       <a
                         href={activePdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                       >
                         Open in new tab
                       </a>
                       <button
                         type="button"
                         onClick={() => setActivePdfUrl(null)}
-                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                       >
                         Close
                       </button>

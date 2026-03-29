@@ -45,6 +45,7 @@ export interface Course {
   views: number;
   content_downloaded: boolean;
   content_downloaded_at: string | null;
+  is_scholar: boolean;
   created_at: string;
   updated_at: string;
 }

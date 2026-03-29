@@ -7,11 +7,11 @@ import { getVideoProgress, markVideoCompleted } from "@/lib/queries/video-progre
 import { getProblemAttempts } from "@/lib/queries/problem-progress";
 import { getCourseSidebarOrder, saveCourseSidebarOrder } from "@/lib/queries/course-sidebar-order";
 import {
-  updateCourseResourceTitle,
-  updateCourseSectionTitle,
-} from "@/lib/queries/problem-editor";
+  updateSectionTitle as updateCourseSectionTitle,
+  updateResourceTitle as updateCourseResourceTitle,
+} from "@/lib/actions/update-titles";
 import YouTubePlayer from "./YouTubePlayer";
-import ProblemSetView from "./ProblemSetView";
+import MarkdownContent from "@/app/components/MarkdownContent";
 
 interface Props {
   sections: CourseSection[];
@@ -22,6 +22,12 @@ interface Props {
   initialLecture?: number;
   onExitPlayer?: () => void;
   onLectureChange?: (index: number) => void;
+  isScholar?: boolean;
+}
+
+interface UnitGroup {
+  unit: CourseSection;
+  sessionIndices: number[]; // indices into visibleSections
 }
 
 function normalizeWhitespace(value: string): string {
@@ -90,6 +96,7 @@ export default function CoursePlayer({
   initialLecture,
   onExitPlayer,
   onLectureChange,
+  isScholar = false,
 }: Props) {
   const isPlayerMode = !!onExitPlayer;
   const didAutoSelectFromProgress = useRef(false);
@@ -124,10 +131,13 @@ export default function CoursePlayer({
     return map;
   }, [editableResources]);
 
-  // Remove duplicate embedded/download lecture entries from navigation.
+  // Remove unit container sections and duplicate entries from navigation.
   const defaultVisibleSections = useMemo(
     () =>
       allSections.filter((section) => {
+        // Skip unit container sections (Scholar) — they're grouping headers, not playable
+        if (section.section_type === "unit") return false;
+
         if (section.section_type !== "lecture") return true;
         if (!isGenericDownloadedVideoSectionTitle(section.title)) return true;
 
@@ -165,6 +175,18 @@ export default function CoursePlayer({
     [defaultVisibleSections, manualSectionOrderIds]
   );
 
+  // Scholar: group visible sections by their parent unit
+  const scholarUnitGroups = useMemo<UnitGroup[]>(() => {
+    if (!isScholar) return [];
+    const unitSections = allSections.filter((s) => s.section_type === "unit");
+    return unitSections.map((unit) => ({
+      unit,
+      sessionIndices: visibleSections
+        .map((s, i) => (s.parent_id === unit.id ? i : -1))
+        .filter((i) => i !== -1),
+    })).filter((g) => g.sessionIndices.length > 0);
+  }, [isScholar, allSections, visibleSections]);
+
   const currentVisibleOrderIds = useMemo(
     () => visibleSections.map((section) => section.id),
     [visibleSections]
@@ -201,11 +223,10 @@ export default function CoursePlayer({
     return map;
   }, [problems]);
 
-  // Map section ID → video resource (for progress tracking)
+  // Map section ID → video resource (for progress tracking — all section types)
   const videoBySection = useMemo(() => {
     const map = new Map<number, Resource>();
     for (const section of visibleSections) {
-      if (section.section_type !== "lecture") continue;
       const sectionResources = resourcesBySection.get(section.id) ?? [];
       const video = sectionResources.find((r) => r.resource_type === "video");
       if (video) map.set(section.id, video);
@@ -247,19 +268,30 @@ export default function CoursePlayer({
   } | null>(null);
   const [dismissedAutoPdfSections, setDismissedAutoPdfSections] = useState<Set<number>>(new Set());
 
+  const isSectionCompletable = useCallback(
+    (section: CourseSection) => {
+      return videoBySection.has(section.id) || (problemIdsBySection.get(section.id) ?? []).length > 0;
+    },
+    [problemIdsBySection, videoBySection]
+  );
+
   const isSectionCompleted = useCallback(
     (
       section: CourseSection,
       videoSet = completedVideos,
       attemptedIds = attemptedProblemIds
     ) => {
-      if (section.section_type === "lecture") {
-        const video = videoBySection.get(section.id);
-        return video ? videoSet.has(video.id) : false;
-      }
-
+      const video = videoBySection.get(section.id);
       const problemIds = problemIdsBySection.get(section.id) ?? [];
-      return problemIds.length > 0 && problemIds.every((problemId) => attemptedIds.has(problemId));
+
+      // Nothing completable in this section
+      if (!video && problemIds.length === 0) return false;
+
+      // Must complete all present components
+      if (video && !videoSet.has(video.id)) return false;
+      if (problemIds.length > 0 && !problemIds.every((problemId) => attemptedIds.has(problemId))) return false;
+
+      return true;
     },
     [attemptedProblemIds, completedVideos, problemIdsBySection, videoBySection]
   );
@@ -343,7 +375,8 @@ export default function CoursePlayer({
     ? lectureSectionIndices[currentLecturePos + 1]
     : undefined;
 
-  const completedCount = visibleSections.filter((section) => isSectionCompleted(section)).length;
+  const completableSections = visibleSections.filter((section) => isSectionCompletable(section));
+  const completedCount = completableSections.filter((section) => isSectionCompleted(section)).length;
 
   useEffect(() => {
     setDraftSectionTitle(currentSection?.title ?? "");
@@ -542,7 +575,7 @@ export default function CoursePlayer({
     if (section.section_type === "lecture") {
       const lecturePos = lectureSectionIndices.indexOf(flatIndex);
       return (
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-zinc-300 text-[10px] text-zinc-400">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-zinc-300 text-[10px] text-zinc-400 dark:border-zinc-600 dark:text-zinc-500">
           {lecturePos + 1}
         </span>
       );
@@ -562,7 +595,7 @@ export default function CoursePlayer({
       {isPlayerMode && (
         <button
           onClick={onExitPlayer}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+          className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -572,18 +605,18 @@ export default function CoursePlayer({
       )}
 
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Content</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Content</p>
         <div className="flex items-center gap-2">
-          {!loadingProgress && visibleSections.length > 0 && (
-            <span className="text-xs text-zinc-400">
-              {completedCount}/{visibleSections.length}
+          {!loadingProgress && completableSections.length > 0 && (
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              {completedCount}/{completableSections.length}
             </span>
           )}
           <button
             type="button"
             onClick={() => setIsSortingSidebar((prev) => !prev)}
             disabled={!isOrderLoaded || isSavingOrder}
-            className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-50"
+            className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
           >
             {isSortingSidebar ? "Done" : "Sort"}
           </button>
@@ -604,7 +637,7 @@ export default function CoursePlayer({
               type="button"
               onClick={resetSidebarOrder}
               disabled={isSavingOrder}
-              className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+              className="rounded bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
             >
               Reset
             </button>
@@ -613,68 +646,103 @@ export default function CoursePlayer({
       </div>
 
       {!isOrderLoaded && (
-        <p className="mb-2 px-3 text-xs text-zinc-500">
+        <p className="mb-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
           Loading shared sidebar order...
         </p>
       )}
 
       {saveOrderMessage && (
-        <p className="mb-2 px-3 text-xs text-zinc-500">
+        <p className="mb-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
           {saveOrderMessage}
         </p>
       )}
 
       {isSortingSidebar && (
-        <p className="mb-2 px-3 text-xs text-zinc-500">
+        <p className="mb-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
           Use arrows to move items up or down.
         </p>
       )}
 
-      {visibleSections.map((section, i) => {
-        const isActive = activeIndex === i;
-        const displayTitle = sidebarSectionTitle(section, i, lectureSectionIndices);
-        return (
-          <div key={section.id} className="flex items-center gap-1">
-            <button
-              onClick={() => goTo(i)}
-              className={`flex min-w-0 flex-1 items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors ${
-                isActive
-                  ? "bg-[#750014]/10 font-medium text-[#750014]"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              {sectionIcon(section, i)}
-              <span className="min-w-0 truncate">{displayTitle}</span>
-            </button>
-            {isSortingSidebar && (
-              <div className="flex shrink-0 items-center gap-0.5">
-                <button
-                  type="button"
-                  aria-label={`Move ${displayTitle} up`}
-                  onClick={() => moveSidebarSection(section.id, -1)}
-                  disabled={i === 0}
-                  className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:pointer-events-none disabled:opacity-30"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Move ${displayTitle} down`}
-                  onClick={() => moveSidebarSection(section.id, 1)}
-                  disabled={i === visibleSections.length - 1}
-                  className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:pointer-events-none disabled:opacity-30"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {isScholar && scholarUnitGroups.length > 0 ? (
+        /* Scholar: unit-grouped sidebar */
+        scholarUnitGroups.map((group) => {
+          const unitHasActiveSession = group.sessionIndices.includes(activeIndex);
+          return (
+            <div key={group.unit.id} className="mb-2">
+              <p className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider ${
+                unitHasActiveSession ? "text-[#750014]" : "text-zinc-400 dark:text-zinc-500"
+              }`}>
+                {group.unit.title}
+              </p>
+              {group.sessionIndices.map((flatIdx, sessionNum) => {
+                const section = visibleSections[flatIdx];
+                const isActive = activeIndex === flatIdx;
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => goTo(flatIdx)}
+                    className={`flex min-w-0 w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors ${
+                      isActive
+                        ? "bg-[#750014]/10 font-medium text-[#750014]"
+                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                    }`}
+                  >
+                    {sectionIcon(section, flatIdx)}
+                    <span className="min-w-0 truncate">{section.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })
+      ) : (
+        /* Non-Scholar: flat section list */
+        visibleSections.map((section, i) => {
+          const isActive = activeIndex === i;
+          const displayTitle = sidebarSectionTitle(section, i, lectureSectionIndices);
+          return (
+            <div key={section.id} className="flex items-center gap-1">
+              <button
+                onClick={() => goTo(i)}
+                className={`flex min-w-0 flex-1 items-center gap-2 rounded px-3 py-1.5 text-left text-sm transition-colors ${
+                  isActive
+                    ? "bg-[#750014]/10 font-medium text-[#750014]"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                }`}
+              >
+                {sectionIcon(section, i)}
+                <span className="min-w-0 truncate">{displayTitle}</span>
+              </button>
+              {isSortingSidebar && (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    aria-label={`Move ${displayTitle} up`}
+                    onClick={() => moveSidebarSection(section.id, -1)}
+                    disabled={i === 0}
+                    className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${displayTitle} down`}
+                    onClick={() => moveSidebarSection(section.id, 1)}
+                    disabled={i === visibleSections.length - 1}
+                    className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
     </nav>
   );
 
@@ -693,13 +761,13 @@ export default function CoursePlayer({
       {/* Main content */}
       <div className="min-w-0 flex-1">
         {canEditContent && currentSection && (
-          <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#750014]">
                   Dev editing
                 </p>
-                <p className="mt-1 text-sm text-zinc-500">
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                   Rename the current section and its primary content title inline.
                 </p>
               </div>
@@ -710,16 +778,16 @@ export default function CoursePlayer({
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-medium text-zinc-700">Section title</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Section title</span>
                 <input
                   value={draftSectionTitle}
                   onChange={(event) => setDraftSectionTitle(event.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-medium text-zinc-700">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   {isLecture ? "Video title" : "Problem set file title"}
                 </span>
                 <input
@@ -727,7 +795,7 @@ export default function CoursePlayer({
                   onChange={(event) => setDraftResourceTitle(event.target.value)}
                   disabled={!primaryEditableResource}
                   placeholder={primaryEditableResource ? undefined : "No editable resource title here"}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:disabled:bg-zinc-900 dark:disabled:text-zinc-600"
                 />
               </label>
             </div>
@@ -780,7 +848,7 @@ export default function CoursePlayer({
             {/* Lecture title + completion badge */}
             <div className="mt-4">
               <div className="flex items-start justify-between gap-4">
-                <h2 className="text-xl font-semibold text-zinc-900">
+                <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
                   {currentSection.title}
                 </h2>
                 {isCurrentCompleted && (
@@ -807,7 +875,7 @@ export default function CoursePlayer({
                           note.title ?? `Lecture Notes ${i + 1}`
                         )
                       }
-                      className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+                      className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
                     >
                       <svg className="h-4 w-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -820,9 +888,9 @@ export default function CoursePlayer({
             </div>
 
             {activePdf && (
-              <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
-                <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
-                  <span className="text-sm font-medium text-zinc-700">
+              <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-700">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     {activePdf.title}
                   </span>
                   <div className="flex items-center gap-2">
@@ -830,14 +898,14 @@ export default function CoursePlayer({
                       href={activePdf.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                     >
                       Open in new tab
                     </a>
                     <button
                       type="button"
                       onClick={closeActivePdf}
-                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                      className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                     >
                       Close
                     </button>
@@ -852,11 +920,11 @@ export default function CoursePlayer({
             )}
 
             {/* Prev / Next navigation (lectures only) */}
-            <div className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-6">
+            <div className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-6 dark:border-zinc-700">
               <button
                 onClick={() => prevLectureIndex !== undefined && goTo(prevLectureIndex)}
                 disabled={prevLectureIndex === undefined}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-30"
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -864,14 +932,14 @@ export default function CoursePlayer({
                 Previous
               </button>
 
-              <span className="text-sm text-zinc-400">
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">
                 {currentLecturePos + 1} / {lectureSectionIndices.length}
               </span>
 
               <button
                 onClick={() => nextLectureIndex !== undefined && goTo(nextLectureIndex)}
                 disabled={nextLectureIndex === undefined}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-30"
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
               >
                 Next
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -882,89 +950,80 @@ export default function CoursePlayer({
           </>
         )}
 
-        {/* Non-lecture view (problem set / exam / recitation) */}
+        {/* Non-lecture view (problem set / exam / recitation / notes) */}
         {!isLecture && currentSection && (() => {
-          // Check if any resource in this section has parsed problems
-          const sectionProblems = currentResources.flatMap(
-            (r) => problemsByResource.get(r.id) ?? []
-          );
-          const hasProblems = sectionProblems.length > 0;
-          const defaultProblemResource =
-            currentResources.find((resource) =>
-              ["problem_set", "exam", "recitation"].includes(resource.resource_type)
-            ) ?? currentResources[0] ?? null;
-          const supportsProblemEditing =
-            ["problem_set", "exam", "recitation"].includes(currentSection.section_type) &&
-            defaultProblemResource !== null;
+          const markdownResources = currentResources.filter((r) => r.content_text);
+          const fileResources = currentResources.filter((r) => r.pdf_path && !r.content_text);
 
-          if (hasProblems || (canEditContent && supportsProblemEditing)) {
-            return (
-              <>
-                <h2 className="mb-4 text-xl font-semibold text-zinc-900">
-                  {currentSection.title}
-                </h2>
-                <ProblemSetView
-                  problems={sectionProblems}
-                  pdfResources={pdfs}
-                  courseId={courseId}
-                  canEdit={canEditContent}
-                  defaultProblemResourceId={defaultProblemResource?.id ?? null}
-                  onProblemAttempted={(problemId) => {
-                    setAttemptedProblemIds((currentIds) => {
-                      if (currentIds.has(problemId)) return currentIds;
-                      const nextIds = new Set(currentIds);
-                      nextIds.add(problemId);
-                      return nextIds;
-                    });
-                  }}
-                />
-              </>
-            );
-          }
-
-          // Fallback: original PDF list view
           return (
             <>
               <h2 className="mb-4 text-xl font-semibold text-zinc-900">
                 {currentSection.title}
               </h2>
-              {pdfs.length > 0 ? (
-                <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
-                  {pdfs.map((resource) => (
+
+              {/* Rendered markdown content */}
+              {markdownResources.length > 0 && (
+                <div className="space-y-4">
+                  {markdownResources.map((resource) => (
+                    <div key={resource.id} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                      <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-6 py-3 dark:border-zinc-700 dark:bg-zinc-800">
+                        <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                          {resource.title}
+                        </span>
+                        {resource.pdf_path && (
+                          <a
+                            href={resource.pdf_path}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                          >
+                            View PDF
+                          </a>
+                        )}
+                      </div>
+                      <div className="max-h-[70vh] overflow-auto px-6 py-5">
+                        <MarkdownContent>{resource.content_text!}</MarkdownContent>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* PDF fallback for resources without markdown */}
+              {fileResources.length > 0 && (
+                <ul className="mt-4 divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-700 dark:bg-zinc-900">
+                  {fileResources.map((resource) => (
                     <li key={resource.id} className="flex items-center gap-3 px-4 py-3">
-                      <span className="shrink-0 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+                      <span className="shrink-0 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                         {resource.resource_type === "solution" ? "Solution" :
                          resource.resource_type === "problem_set" ? "Assignment" :
                          resource.resource_type === "exam" ? "Exam" :
                          resource.resource_type === "recitation" ? "Recitation" :
                          "File"}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-zinc-900">
+                      <span className="min-w-0 flex-1 truncate text-sm text-zinc-900 dark:text-zinc-100">
                         {resource.title}
                       </span>
-                      {resource.pdf_path && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            resource.pdf_path &&
-                            selectPdf(resource.pdf_path, resource.title)
-                          }
-                          className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
-                        >
-                          View PDF
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => resource.pdf_path && selectPdf(resource.pdf_path, resource.title)}
+                        className="shrink-0 rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                      >
+                        View PDF
+                      </button>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="text-sm text-zinc-500">No files available for this section.</p>
+              )}
+
+              {markdownResources.length === 0 && fileResources.length === 0 && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No files available for this section.</p>
               )}
 
               {activePdf && (
-                <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white">
-                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
-                    <span className="text-sm font-medium text-zinc-700">
+                <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-700">
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                       {activePdf.title}
                     </span>
                     <div className="flex items-center gap-2">
@@ -972,14 +1031,14 @@ export default function CoursePlayer({
                         href={activePdf.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                       >
                         Open in new tab
                       </a>
                       <button
                         type="button"
                         onClick={closeActivePdf}
-                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
+                        className="rounded bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                       >
                         Close
                       </button>
@@ -1002,22 +1061,49 @@ export default function CoursePlayer({
             All Content
           </p>
           <div className="flex flex-col gap-1">
-            {visibleSections.map((section, i) => (
-              <button
-                key={section.id}
-                onClick={() => goTo(i)}
-                className={`flex items-center gap-2 rounded px-3 py-2 text-left text-sm transition-colors ${
-                  activeIndex === i
-                    ? "bg-[#750014]/10 font-medium text-[#750014]"
-                    : "text-zinc-600 hover:bg-zinc-100"
-                }`}
-              >
-                {sectionIcon(section, i)}
-                <span className="min-w-0 truncate">
-                  {sidebarSectionTitle(section, i, lectureSectionIndices)}
-                </span>
-              </button>
-            ))}
+            {isScholar && scholarUnitGroups.length > 0 ? (
+              scholarUnitGroups.map((group) => (
+                <div key={group.unit.id} className="mb-2">
+                  <p className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                    {group.unit.title}
+                  </p>
+                  {group.sessionIndices.map((flatIdx) => {
+                    const section = visibleSections[flatIdx];
+                    return (
+                      <button
+                        key={section.id}
+                        onClick={() => goTo(flatIdx)}
+                        className={`flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm transition-colors ${
+                          activeIndex === flatIdx
+                            ? "bg-[#750014]/10 font-medium text-[#750014]"
+                            : "text-zinc-600 hover:bg-zinc-100"
+                        }`}
+                      >
+                        {sectionIcon(section, flatIdx)}
+                        <span className="min-w-0 truncate">{section.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
+            ) : (
+              visibleSections.map((section, i) => (
+                <button
+                  key={section.id}
+                  onClick={() => goTo(i)}
+                  className={`flex items-center gap-2 rounded px-3 py-2 text-left text-sm transition-colors ${
+                    activeIndex === i
+                      ? "bg-[#750014]/10 font-medium text-[#750014]"
+                      : "text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {sectionIcon(section, i)}
+                  <span className="min-w-0 truncate">
+                    {sidebarSectionTitle(section, i, lectureSectionIndices)}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
         </div>
       </div>

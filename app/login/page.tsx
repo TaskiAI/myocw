@@ -34,11 +34,11 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-[calc(100vh-57px)] max-w-sm flex-col justify-center px-6">
-      <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">
-      <h1 className="mb-1 text-2xl font-semibold tracking-tight text-zinc-900">
+      <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+      <h1 className="mb-1 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         {isSignUp ? "Create an account" : "Sign in"}
       </h1>
-      <p className="mb-8 text-sm text-zinc-500">
+      <p className="mb-8 text-sm text-zinc-500 dark:text-zinc-400">
         {isSignUp
           ? "Sign up to track your courses and progress."
           : "Welcome back. Sign in to continue."}
@@ -51,7 +51,7 @@ export default function LoginPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#750014]/30"
+          className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#750014]/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <input
           type="password"
@@ -60,7 +60,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#750014]/30"
+          className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#750014]/30 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -74,7 +74,7 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-500">
+      <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
         {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
         <button
           onClick={() => {

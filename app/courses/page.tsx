@@ -26,7 +26,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-zinc-900">
+      <h1 className="mb-6 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
         Courses
       </h1>
 
@@ -44,7 +44,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
 
       {courses.length === 0 ? (
         <div className="py-20 text-center">
-          <p className="text-sm text-zinc-500">No courses found matching your filters.</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">No courses found matching your filters.</p>
         </div>
       ) : (
         <>

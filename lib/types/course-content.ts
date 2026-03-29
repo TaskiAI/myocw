@@ -19,6 +19,7 @@ export interface Resource {
   video_url: string | null;
   youtube_id: string | null;
   archive_url: string | null;
+  content_text: string | null;
   ordering: number;
   created_at: string;
 }

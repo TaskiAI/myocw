@@ -20,7 +20,7 @@ const GRADE_OPTIONS: { value: SelfGrade; label: string; color: string }[] = [
   { value: "unsure", label: "Unsure", color: "bg-zinc-100 text-zinc-700 border-zinc-300" },
 ];
 const MATH_CONTENT_CLASS =
-  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words overflow-x-auto";
+  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words overflow-x-auto dark:text-zinc-300";
 
 function gradeBadge(grade: SelfGrade) {
   const option = GRADE_OPTIONS.find((o) => o.value === grade);
@@ -64,11 +64,11 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white">
+    <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
       {/* Problem header */}
-      <div className="border-b border-zinc-100 px-6 py-4">
+      <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-500">
+          <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
             Problem {problem.problem_label}
           </h3>
           {phase === "graded" && currentGrade && gradeBadge(currentGrade)}
@@ -83,10 +83,10 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
       </div>
 
       {/* Answer area */}
-      <div className="border-t border-zinc-100 px-6 py-4">
+      <div className="border-t border-zinc-100 px-6 py-4 dark:border-zinc-800">
         {phase === "answering" && (
           <>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Your Answer
             </label>
             <textarea
@@ -94,7 +94,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="Type your answer here..."
               rows={5}
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014]"
+              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <button
               type="button"
@@ -111,8 +111,8 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
           <>
             {/* User's answer (read-only) */}
             <div className="mb-4">
-              <p className="mb-1 text-sm font-medium text-zinc-700">Your Answer</p>
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap">
+              <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {answer}
               </div>
             </div>
@@ -127,14 +127,14 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
                   sorry, solutions are not available at this point
                 </div>
               )}
             </div>
 
             {/* Self-grade buttons */}
-            <p className="mb-2 text-sm font-medium text-zinc-700">How did you do?</p>
+            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">How did you do?</p>
             <div className="flex flex-wrap gap-2">
               {GRADE_OPTIONS.map((option) => (
                 <button
@@ -155,8 +155,8 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
           <>
             {/* User's answer (read-only) */}
             <div className="mb-4">
-              <p className="mb-1 text-sm font-medium text-zinc-700">Your Answer</p>
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap">
+              <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {existingAttempt?.answer_text ?? answer}
               </div>
             </div>
@@ -171,7 +171,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
                   sorry, solutions are not available at this point
                 </div>
               )}
@@ -180,7 +180,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
             <button
               type="button"
               onClick={handleTryAgain}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Try Again
             </button>

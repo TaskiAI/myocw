@@ -3,7 +3,7 @@ import type { Resource } from "@/lib/types/course-content";
 export default function VideoPlayer({ resource }: { resource: Resource }) {
   if (resource.youtube_id) {
     return (
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         <div className="relative aspect-video w-full">
           <iframe
             src={`https://www.youtube.com/embed/${resource.youtube_id}`}
@@ -14,7 +14,7 @@ export default function VideoPlayer({ resource }: { resource: Resource }) {
           />
         </div>
         <div className="px-4 py-3">
-          <p className="text-sm font-medium text-zinc-900">{resource.title}</p>
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{resource.title}</p>
         </div>
       </div>
     );
@@ -22,7 +22,7 @@ export default function VideoPlayer({ resource }: { resource: Resource }) {
 
   if (resource.archive_url) {
     return (
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         <div className="relative aspect-video w-full bg-black">
           <video
             src={resource.archive_url}
@@ -33,7 +33,7 @@ export default function VideoPlayer({ resource }: { resource: Resource }) {
           </video>
         </div>
         <div className="px-4 py-3">
-          <p className="text-sm font-medium text-zinc-900">{resource.title}</p>
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{resource.title}</p>
         </div>
       </div>
     );

@@ -1,0 +1,5 @@
+{
+  "name": "ProblemSet to Markdown Converter",
+  "description": "Convert math-heavy ProblemSet PDFs into Markdown with rendered LaTeX using Gemini Vision.",
+  "requestFramePermissions": []
+}

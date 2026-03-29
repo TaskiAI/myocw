@@ -32,7 +32,7 @@ interface EditorState {
 }
 
 const inputClassName =
-  "w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-4 focus:ring-[#750014]/10";
+  "w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-4 focus:ring-[#750014]/10 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500";
 
 const textAreaClassName = `${inputClassName} min-h-[140px] resize-y`;
 
@@ -371,9 +371,9 @@ export default function ManualPsetEditor({
 
   if (!canEdit) {
     return (
-      <section className="rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h2 className="text-xl font-semibold text-zinc-900">Editor unavailable</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+      <section className="rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Editor unavailable</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
           This manual PDF-to-pset workspace is hard-coded to the dev account
           `ardatasci@nyu.edu`. Sign into that account to edit problem sets here.
         </p>
@@ -383,19 +383,19 @@ export default function ManualPsetEditor({
 
   return (
     <section className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <aside className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               Drafts
             </p>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
               Private working copies for manual transcription.
             </p>
           </div>
           <button
             onClick={createNewDraft}
-            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
           >
             New draft
           </button>

@@ -10,11 +10,11 @@ export default function CurriculumTrackCard({
   showEnrollmentControls?: boolean;
 }) {
   return (
-    <details className="rounded-2xl border border-zinc-200 bg-white p-5 open:pb-6">
+    <details className="rounded-2xl border border-zinc-200 bg-white p-5 open:pb-6 dark:border-zinc-700 dark:bg-zinc-900">
       <summary className="flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
         <div>
-          <h3 className="text-base font-semibold text-zinc-900">{track.name}</h3>
-          <p className="mt-1 text-xs text-zinc-500">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{track.name}</h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             {track.courses.length} courses · In-app {track.courses.filter((course) => course.localCourseId !== null).length}
           </p>
         </div>
@@ -25,8 +25,8 @@ export default function CurriculumTrackCard({
         )}
       </summary>
 
-      <div className="mt-4 border-t border-zinc-100 pt-4">
-        <p className="text-sm text-zinc-600">{track.description}</p>
+      <div className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">{track.description}</p>
 
         {showEnrollmentControls && (
           <div className="mt-4">
@@ -44,12 +44,12 @@ export default function CurriculumTrackCard({
             return (
               <li
                 key={`${track.id}-${course.urlPath}`}
-                className="flex items-start justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2"
+                className="flex items-start justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
               >
                 <div>
-                  <p className="text-xs font-medium text-zinc-400">Step {index + 1}</p>
-                  <p className="text-xs font-semibold text-zinc-500">{course.courseNumber}</p>
-                  <p className="text-sm font-medium text-zinc-900">{course.title}</p>
+                  <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Step {index + 1}</p>
+                  <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{course.courseNumber}</p>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{course.title}</p>
                 </div>
                 <Link
                   href={href}
@@ -64,7 +64,7 @@ export default function CurriculumTrackCard({
           })}
         </ol>
 
-        <p className="mt-4 text-xs text-zinc-500">
+        <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
           Source:{" "}
           <Link
             href={track.sourceUrl}

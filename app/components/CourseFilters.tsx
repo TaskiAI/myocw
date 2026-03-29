@@ -37,7 +37,7 @@ export default function CourseFilters({ departments, topics }: CourseFiltersProp
   }
 
   const selectClass =
-    "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#750014]/30";
+    "rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#750014]/30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -67,7 +67,7 @@ export default function CourseFilters({ departments, topics }: CourseFiltersProp
         ))}
       </select>
 
-      <label className="flex items-center gap-1.5 text-sm text-zinc-700">
+      <label className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
         <input
           type="checkbox"
           checked={hasVideos}
@@ -77,7 +77,7 @@ export default function CourseFilters({ departments, topics }: CourseFiltersProp
         Lecture Videos
       </label>
 
-      <label className="flex items-center gap-1.5 text-sm text-zinc-700">
+      <label className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
         <input
           type="checkbox"
           checked={hasPsets}

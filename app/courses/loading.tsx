@@ -15,7 +15,7 @@ export default function CoursesLoading() {
         {Array.from({ length: 9 }).map((_, i) => (
           <div
             key={i}
-            className="overflow-hidden rounded-xl border border-zinc-200 bg-white"
+            className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
           >
             <div className="aspect-[16/9] w-full bg-zinc-100" />
             <div className="flex flex-col gap-2 p-4">

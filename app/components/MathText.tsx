@@ -73,10 +73,13 @@ function isStandaloneDisplayMath(line: string, segments: MathSegment[]): number 
 
 function renderMathSegment(segment: MathSegment, key: string) {
   try {
+    // Use MathML output — Google Translate doesn't touch MathML elements
+    // (<mi>, <mo>, <mn>, etc.), which solves the 'y' translation problem
     const html = katex.renderToString(segment.content.trim(), {
       displayMode: segment.type === "display",
       throwOnError: false,
       trust: true,
+      output: "mathml",
     });
 
     return (
@@ -177,11 +180,18 @@ function parseInlineMarkdown(source: string): InlineNode[] {
     if (source.startsWith("**", index) || source.startsWith("__", index)) {
       const marker = source.slice(index, index + 2);
       const closeIndex = source.indexOf(marker, index + 2);
-      if (closeIndex !== -1) {
+      if (closeIndex !== -1 && closeIndex > index + 2) {
+        const inner = source.slice(index + 2, closeIndex);
+        // Don't treat runs of underscores (e.g. ______) as bold markers
+        if (marker === "__" && /^_+$/.test(inner)) {
+          textBuffer += source[index];
+          index += 1;
+          continue;
+        }
         pushText();
         nodes.push({
           type: "strong",
-          children: parseInlineMarkdown(source.slice(index + 2, closeIndex)),
+          children: parseInlineMarkdown(inner),
         });
         index = closeIndex + 2;
         continue;
@@ -206,9 +216,10 @@ function parseInlineMarkdown(source: string): InlineNode[] {
       const nextChar = index + 1 < source.length ? source[index + 1] : undefined;
       const canOpen = !isWordCharacter(previousChar) && !/^\s$/.test(nextChar ?? "");
 
-      if (canOpen) {
+      // Don't open italic if next char is also underscore (part of a run like _______)
+      if (canOpen && nextChar !== "_") {
         const closeIndex = source.indexOf("_", index + 1);
-        if (closeIndex !== -1) {
+        if (closeIndex !== -1 && closeIndex > index + 1) {
           const beforeClose = source[closeIndex - 1];
           if (!isWordCharacter(beforeClose)) {
             pushText();
