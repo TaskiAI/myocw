@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo, type ReactNode } from "react";
 import type { Problem, SelfGrade, UserProblemAttempt } from "@/lib/types/course-content";
 import { submitProblemAttempt } from "@/lib/queries/problem-progress";
 import MathText from "@/app/components/MathText";
+import {
+  tokenizeInteractiveComponents,
+  hasInteractiveTags,
+} from "@/app/components/interactive-problems/parse-tags";
+import type { ComponentSlot } from "@/app/components/interactive-problems/parse-tags";
+import { InteractiveProblemProvider } from "@/app/components/interactive-problems/context";
+import FillInBlankField from "@/app/components/interactive-problems/FillInBlankField";
+import MultipleChoiceField from "@/app/components/interactive-problems/MultipleChoiceField";
+import FreeResponseField from "@/app/components/interactive-problems/FreeResponseField";
 
 interface Props {
   problem: Problem;
@@ -20,7 +29,7 @@ const GRADE_OPTIONS: { value: SelfGrade; label: string; color: string }[] = [
   { value: "unsure", label: "Unsure", color: "bg-zinc-100 text-zinc-700 border-zinc-300" },
 ];
 const MATH_CONTENT_CLASS =
-  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words overflow-x-auto dark:text-zinc-300";
+  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words dark:text-zinc-300";
 
 function gradeBadge(grade: SelfGrade) {
   const option = GRADE_OPTIONS.find((o) => o.value === grade);
@@ -32,15 +41,137 @@ function gradeBadge(grade: SelfGrade) {
   );
 }
 
+function parseExistingAnswers(
+  answerText: string | undefined,
+  isInteractive: boolean
+): Record<number, string> {
+  if (!answerText || !isInteractive) return {};
+  try {
+    const parsed = JSON.parse(answerText);
+    if (typeof parsed === "object" && parsed !== null) return parsed;
+  } catch {
+    // Not JSON — legacy single-answer format
+  }
+  return {};
+}
+
+function SolutionBlock({ problem }: { problem: Problem }) {
+  const [showExplanation, setShowExplanation] = useState(false);
+
+  if (!problem.solution_text && !problem.explanation_text) {
+    return (
+      <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+        sorry, solutions are not available at this point
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4">
+      {problem.solution_text && (
+        <>
+          <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
+          <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+            <div className={MATH_CONTENT_CLASS}>
+              <MathText>{problem.solution_text}</MathText>
+            </div>
+          </div>
+        </>
+      )}
+      {problem.explanation_text && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowExplanation((v) => !v)}
+            className="text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+          >
+            {showExplanation ? "Hide Explanation" : "Show Explanation"}
+          </button>
+          {showExplanation && (
+            <div className="mt-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-900 dark:bg-blue-950">
+              <div className={MATH_CONTENT_CLASS}>
+                <MathText>{problem.explanation_text}</MathText>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitted }: Props) {
+  const isInteractive = useMemo(
+    () => hasInteractiveTags(problem.question_text),
+    [problem.question_text]
+  );
+
+  const { cleaned, slots } = useMemo(() => {
+    if (!isInteractive) return { cleaned: problem.question_text, slots: [] as ComponentSlot[] };
+    return tokenizeInteractiveComponents(problem.question_text);
+  }, [problem.question_text, isInteractive]);
+
   const [phase, setPhase] = useState<Phase>(existingAttempt ? "graded" : "answering");
+
+  // Classic mode: single answer string
   const [answer, setAnswer] = useState(existingAttempt?.answer_text ?? "");
+
+  // Interactive mode: per-slot answers
+  const [interactiveAnswers, setInteractiveAnswers] = useState<Record<number, string>>(() =>
+    parseExistingAnswers(existingAttempt?.answer_text, isInteractive)
+  );
+
   const [currentGrade, setCurrentGrade] = useState<SelfGrade | null>(existingAttempt?.self_grade ?? null);
   const [submitting, setSubmitting] = useState(false);
 
+  const setSlotAnswer = useCallback((slotIndex: number, value: string) => {
+    setInteractiveAnswers((prev) => ({ ...prev, [slotIndex]: value }));
+  }, []);
+
+  const hasAnyAnswer = isInteractive
+    ? Object.values(interactiveAnswers).some((v) => v.trim())
+    : answer.trim().length > 0;
+
+  const answerPayload = isInteractive
+    ? JSON.stringify(interactiveAnswers)
+    : answer;
+
+  const renderComponent = useCallback(
+    (slotIndex: number, key: string): ReactNode => {
+      const slot = slots[slotIndex];
+      if (!slot) return null;
+
+      switch (slot.type) {
+        case "FillInBlank":
+          return <FillInBlankField key={key} slotIndex={slotIndex} answer={slot.answer} />;
+        case "MultipleChoice":
+          return (
+            <MultipleChoiceField
+              key={key}
+              slotIndex={slotIndex}
+              options={slot.options ?? []}
+              answer={slot.answer}
+            />
+          );
+        case "FreeResponse":
+          return (
+            <FreeResponseField
+              key={key}
+              slotIndex={slotIndex}
+              prompt={slot.prompt ?? ""}
+              answer={slot.answer}
+            />
+          );
+        default:
+          return null;
+      }
+    },
+    [slots]
+  );
+
   async function handleGrade(grade: SelfGrade) {
     setSubmitting(true);
-    const success = await submitProblemAttempt(problem.id, answer, grade);
+    const success = await submitProblemAttempt(problem.id, answerPayload, grade);
     setSubmitting(false);
 
     if (success) {
@@ -50,7 +181,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
         id: 0,
         user_id: "",
         problem_id: problem.id,
-        answer_text: answer,
+        answer_text: answerPayload,
         self_grade: grade,
         attempted_at: new Date().toISOString(),
       });
@@ -58,7 +189,11 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
   }
 
   function handleTryAgain() {
-    setAnswer("");
+    if (isInteractive) {
+      setInteractiveAnswers({});
+    } else {
+      setAnswer("");
+    }
     setCurrentGrade(null);
     setPhase("answering");
   }
@@ -78,7 +213,23 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
       {/* Problem text */}
       <div className="px-6 py-4">
         <div className={MATH_CONTENT_CLASS}>
-          <MathText>{problem.question_text}</MathText>
+          {isInteractive ? (
+            <InteractiveProblemProvider
+              slots={slots}
+              answers={interactiveAnswers}
+              setAnswer={setSlotAnswer}
+              phase={phase}
+            >
+              <MathText
+                componentSlots={slots}
+                renderComponent={renderComponent}
+              >
+                {cleaned}
+              </MathText>
+            </InteractiveProblemProvider>
+          ) : (
+            <MathText>{problem.question_text}</MathText>
+          )}
         </div>
       </div>
 
@@ -86,20 +237,25 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
       <div className="border-t border-zinc-100 px-6 py-4 dark:border-zinc-800">
         {phase === "answering" && (
           <>
-            <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Your Answer
-            </label>
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Type your answer here..."
-              rows={5}
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            />
+            {/* Classic textarea — only for non-interactive problems */}
+            {!isInteractive && (
+              <>
+                <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Your Answer
+                </label>
+                <textarea
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  placeholder="Type your answer here..."
+                  rows={5}
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+              </>
+            )}
             <button
               type="button"
               onClick={() => setPhase("reviewing")}
-              disabled={!answer.trim()}
+              disabled={!hasAnyAnswer}
               className="mt-3 rounded-lg bg-[#750014] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5a0010] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Show Solution
@@ -109,29 +265,18 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
 
         {phase === "reviewing" && (
           <>
-            {/* User's answer (read-only) */}
-            <div className="mb-4">
-              <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {answer}
+            {/* Classic answer display — only for non-interactive */}
+            {!isInteractive && (
+              <div className="mb-4">
+                <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  {answer}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Solution */}
-            <div className="mb-4">
-              <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
-              {problem.solution_text ? (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-                  <div className={MATH_CONTENT_CLASS}>
-                    <MathText>{problem.solution_text}</MathText>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                  sorry, solutions are not available at this point
-                </div>
-              )}
-            </div>
+            {/* Solution + explanation */}
+            {(problem.solution_text || !isInteractive) && <SolutionBlock problem={problem} />}
 
             {/* Self-grade buttons */}
             <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">How did you do?</p>
@@ -153,29 +298,18 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
 
         {phase === "graded" && (
           <>
-            {/* User's answer (read-only) */}
-            <div className="mb-4">
-              <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {existingAttempt?.answer_text ?? answer}
+            {/* Classic answer display — only for non-interactive */}
+            {!isInteractive && (
+              <div className="mb-4">
+                <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  {existingAttempt?.answer_text ?? answer}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Solution */}
-            <div className="mb-4">
-              <p className="mb-1 text-sm font-medium text-green-700">Solution</p>
-              {problem.solution_text ? (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-                  <div className={MATH_CONTENT_CLASS}>
-                    <MathText>{problem.solution_text}</MathText>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-                  sorry, solutions are not available at this point
-                </div>
-              )}
-            </div>
+            {/* Solution + explanation */}
+            {(problem.solution_text || !isInteractive) && <SolutionBlock problem={problem} />}
 
             <button
               type="button"

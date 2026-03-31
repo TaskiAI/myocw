@@ -82,6 +82,9 @@ export async function getCurriculaTracks(): Promise<CurriculumTrack[]> {
     }
   }
 
+  // Temporary: only surface downloaded course(s) to reduce clutter
+  const AVAILABLE_COURSE_IDS = new Set([4794]);
+
   return CURRICULA_TRACKS.map((track) => ({
     id: track.id,
     name: track.name,
@@ -91,17 +94,23 @@ export async function getCurriculaTracks(): Promise<CurriculumTrack[]> {
     capturedAt: track.capturedAt,
     isEnrolled: enrollmentByCurriculumId.has(track.id),
     enrolledAt: enrollmentByCurriculumId.get(track.id) ?? null,
-    courses: track.courses.map((course) => {
-      const key = normalizePath(course.urlPath);
-      return {
-        courseNumber: course.courseNumber,
-        title: course.title,
-        urlPath: course.urlPath,
-        ocwUrl: `https://ocw.mit.edu${course.urlPath}/`,
-        localCourseId: localIdByPath.get(key) ?? null,
-      };
-    }),
-  }));
+    courses: track.courses
+      .filter((course) => {
+        const key = normalizePath(course.urlPath);
+        const localId = localIdByPath.get(key);
+        return localId != null && AVAILABLE_COURSE_IDS.has(localId);
+      })
+      .map((course) => {
+        const key = normalizePath(course.urlPath);
+        return {
+          courseNumber: course.courseNumber,
+          title: course.title,
+          urlPath: course.urlPath,
+          ocwUrl: `https://ocw.mit.edu${course.urlPath}/`,
+          localCourseId: localIdByPath.get(key) ?? null,
+        };
+      }),
+  })).filter((track) => track.courses.length > 0);
 }
 
 export async function getEnrolledCurriculaTracks(): Promise<CurriculumTrack[]> {

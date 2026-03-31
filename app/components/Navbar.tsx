@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -75,7 +76,12 @@ export default function Navbar() {
       : "text-zinc-600 dark:text-zinc-400 hover:text-[#810020] dark:hover:text-[#ffb3b5] transition-colors";
 
   return (
-    <header className="fixed top-0 z-50 w-full bg-white/80 backdrop-blur-md dark:bg-zinc-950/80">
+    <motion.header
+      initial={{ y: -20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const }}
+      className="fixed top-0 z-50 w-full bg-white/80 backdrop-blur-md dark:bg-zinc-950/80"
+    >
       <div className="mx-auto flex h-20 max-w-screen-2xl items-center justify-between px-6 md:px-12">
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-8">
@@ -98,7 +104,7 @@ export default function Navbar() {
                 My Courses
               </Link>
               <Link href="/curricula" className={navLinkClass("/curricula")}>
-                Curricula
+                Pathways
               </Link>
               <Link href="/account" className={navLinkClass("/account")}>
                 Account
@@ -179,6 +185,6 @@ export default function Navbar() {
           )}
         </div>
       </div>
-    </header>
+    </motion.header>
   );
 }

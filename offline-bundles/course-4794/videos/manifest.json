@@ -1,0 +1,486 @@
+{
+  "course_id": 4794,
+  "course_title": "Linear Algebra",
+  "videos": [
+    {
+      "title": "Instructor Insights",
+      "youtube_id": "7UJ4CFRGd-U",
+      "filename": "7UJ4CFRGd-U.mp4",
+      "youtube_url": "https://youtube.com/watch?v=7UJ4CFRGd-U"
+    },
+    {
+      "title": "Column Space and Nullspace",
+      "youtube_id": "8o5Cmfpeo6g",
+      "filename": "8o5Cmfpeo6g.mp4",
+      "youtube_url": "https://youtube.com/watch?v=8o5Cmfpeo6g"
+    },
+    {
+      "title": "Lecture 22: Diagonalization and Powers of A",
+      "youtube_id": "13r9QY6cmjc",
+      "filename": "13r9QY6cmjc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=13r9QY6cmjc"
+    },
+    {
+      "title": "Exam 2 Review",
+      "youtube_id": "QuZL5IKpO_U",
+      "filename": "QuZL5IKpO_U.mp4",
+      "youtube_url": "https://youtube.com/watch?v=QuZL5IKpO_U"
+    },
+    {
+      "title": "Lecture 24: Markov Matrices; Fourier Series",
+      "youtube_id": "lGGDIGizcQ0",
+      "filename": "lGGDIGizcQ0.mp4",
+      "youtube_url": "https://youtube.com/watch?v=lGGDIGizcQ0"
+    },
+    {
+      "title": "Lecture 15: Projections onto Subspaces",
+      "youtube_id": "Y_Ac6KiQ1t0",
+      "filename": "Y_Ac6KiQ1t0.mp4",
+      "youtube_url": "https://youtube.com/watch?v=Y_Ac6KiQ1t0"
+    },
+    {
+      "title": "Lecture 18: Properties of Determinants",
+      "youtube_id": "srxexLishgY",
+      "filename": "srxexLishgY.mp4",
+      "youtube_url": "https://youtube.com/watch?v=srxexLishgY"
+    },
+    {
+      "title": "Lecture 21: Eigenvalues and Eigenvectors",
+      "youtube_id": "cdZnhQjJu4I",
+      "filename": "cdZnhQjJu4I.mp4",
+      "youtube_url": "https://youtube.com/watch?v=cdZnhQjJu4I"
+    },
+    {
+      "title": "Final Course Review",
+      "youtube_id": "RWvi4Vx4CDc",
+      "filename": "RWvi4Vx4CDc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=RWvi4Vx4CDc"
+    },
+    {
+      "title": "Exam 3 Review",
+      "youtube_id": "HgC1l_6ySkc",
+      "filename": "HgC1l_6ySkc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=HgC1l_6ySkc"
+    },
+    {
+      "title": "Lecture 30: Linear Transformations and their Matrices",
+      "youtube_id": "Ts3o2I8_Mxc",
+      "filename": "Ts3o2I8_Mxc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=Ts3o2I8_Mxc"
+    },
+    {
+      "title": "Lecture 33: Left and Right Inverses; Pseudoinverse",
+      "youtube_id": "Go2aLo7ZOlU",
+      "filename": "Go2aLo7ZOlU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=Go2aLo7ZOlU"
+    },
+    {
+      "title": "Lecture 29: Singular Value Decomposition",
+      "youtube_id": "TX_vooSnhm8",
+      "filename": "TX_vooSnhm8.mp4",
+      "youtube_url": "https://youtube.com/watch?v=TX_vooSnhm8"
+    },
+    {
+      "title": "Gil Strang's Final 18.06 Linear Algebra Lecture",
+      "youtube_id": "lUUte2o2Sn8",
+      "filename": "lUUte2o2Sn8.mp4",
+      "youtube_url": "https://youtube.com/watch?v=lUUte2o2Sn8"
+    },
+    {
+      "title": "Lecture 31: Change of Basis; Image Compression",
+      "youtube_id": "0h43aV4aH7I",
+      "filename": "0h43aV4aH7I.mp4",
+      "youtube_url": "https://youtube.com/watch?v=0h43aV4aH7I"
+    },
+    {
+      "title": "Lecture 28: Similar Matrices and Jordan Form",
+      "youtube_id": "TSdXJw83kyA",
+      "filename": "TSdXJw83kyA.mp4",
+      "youtube_url": "https://youtube.com/watch?v=TSdXJw83kyA"
+    },
+    {
+      "title": "Lecture 25: Symmetric Matrices and Positive Definiteness",
+      "youtube_id": "UCc9q_cAhho",
+      "filename": "UCc9q_cAhho.mp4",
+      "youtube_url": "https://youtube.com/watch?v=UCc9q_cAhho"
+    },
+    {
+      "title": "Lecture 26: Complex Matrices; Fast Fourier Transform (FFT)",
+      "youtube_id": "M0Sa8fLOajA",
+      "filename": "M0Sa8fLOajA.mp4",
+      "youtube_url": "https://youtube.com/watch?v=M0Sa8fLOajA"
+    },
+    {
+      "title": "Lecture 23: Differential Equations and exp(At)",
+      "youtube_id": "IZqwi0wJovM",
+      "filename": "IZqwi0wJovM.mp4",
+      "youtube_url": "https://youtube.com/watch?v=IZqwi0wJovM"
+    },
+    {
+      "title": "An Overview of Linear Algebra",
+      "youtube_id": "0oBJN8F616U",
+      "filename": "0oBJN8F616U.mp4",
+      "youtube_url": "https://youtube.com/watch?v=0oBJN8F616U"
+    },
+    {
+      "title": "Factorization into A = LU",
+      "youtube_id": "MsIvs_6vC38",
+      "filename": "MsIvs_6vC38.mp4",
+      "youtube_url": "https://youtube.com/watch?v=MsIvs_6vC38"
+    },
+    {
+      "title": "Solving Ax = 0: Pivot Variables, Special Solutions",
+      "youtube_id": "VqP2tREMvt0",
+      "filename": "VqP2tREMvt0.mp4",
+      "youtube_url": "https://youtube.com/watch?v=VqP2tREMvt0"
+    },
+    {
+      "title": "The Four Fundamental Subspaces",
+      "youtube_id": "nHlE7EgJFds",
+      "filename": "nHlE7EgJFds.mp4",
+      "youtube_url": "https://youtube.com/watch?v=nHlE7EgJFds"
+    },
+    {
+      "title": "Exam 1 Review",
+      "youtube_id": "l88D4r74gtM",
+      "filename": "l88D4r74gtM.mp4",
+      "youtube_url": "https://youtube.com/watch?v=l88D4r74gtM"
+    },
+    {
+      "title": "Elimination with Matrices",
+      "youtube_id": "QVKj3LADCnA",
+      "filename": "QVKj3LADCnA.mp4",
+      "youtube_url": "https://youtube.com/watch?v=QVKj3LADCnA"
+    },
+    {
+      "title": "Transposes, Permutations, Vector Spaces",
+      "youtube_id": "JibVXBElKL0",
+      "filename": "JibVXBElKL0.mp4",
+      "youtube_url": "https://youtube.com/watch?v=JibVXBElKL0"
+    },
+    {
+      "title": "Lecture 20: Cramer's Rule, Inverse Matrix and Volume",
+      "youtube_id": "QNpj-gOXW9M",
+      "filename": "QNpj-gOXW9M.mp4",
+      "youtube_url": "https://youtube.com/watch?v=QNpj-gOXW9M"
+    },
+    {
+      "title": "Lecture 17: Orthogonal Matrices and Gram-Schmidt",
+      "youtube_id": "0MtwqhIwdrI",
+      "filename": "0MtwqhIwdrI.mp4",
+      "youtube_url": "https://youtube.com/watch?v=0MtwqhIwdrI"
+    },
+    {
+      "title": "Solving Ax = b: Row Reduced Form R",
+      "youtube_id": "9Q1q7s1jTzU",
+      "filename": "9Q1q7s1jTzU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=9Q1q7s1jTzU"
+    },
+    {
+      "title": "Matrix Spaces; Rank 1; Small World Graphs",
+      "youtube_id": "2IdtqGM6KWU",
+      "filename": "2IdtqGM6KWU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=2IdtqGM6KWU"
+    },
+    {
+      "title": "The Geometry of Linear Equations",
+      "youtube_id": "J7DzL2_Na80",
+      "filename": "J7DzL2_Na80.mp4",
+      "youtube_url": "https://youtube.com/watch?v=J7DzL2_Na80"
+    },
+    {
+      "title": "Multiplication and Inverse Matrices",
+      "youtube_id": "FX4C-JpTFgY",
+      "filename": "FX4C-JpTFgY.mp4",
+      "youtube_url": "https://youtube.com/watch?v=FX4C-JpTFgY"
+    },
+    {
+      "title": "Independence, Basis and Dimension",
+      "youtube_id": "yjBerM5jWsc",
+      "filename": "yjBerM5jWsc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=yjBerM5jWsc"
+    },
+    {
+      "title": "Orthogonal Vectors and Subspaces",
+      "youtube_id": "YzZUIYRCE38",
+      "filename": "YzZUIYRCE38.mp4",
+      "youtube_url": "https://youtube.com/watch?v=YzZUIYRCE38"
+    },
+    {
+      "title": "Lecture 27: Positive Definite Matrices and Minima",
+      "youtube_id": "vF7eyJ2g3kU",
+      "filename": "vF7eyJ2g3kU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=vF7eyJ2g3kU"
+    },
+    {
+      "title": "Graphs, Networks, Incidence Matrices",
+      "youtube_id": "6-wh6yvk6uc",
+      "filename": "6-wh6yvk6uc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=6-wh6yvk6uc"
+    },
+    {
+      "title": "Lecture 16: Projection Matrices and Least Squares",
+      "youtube_id": "osh80YCg_GM",
+      "filename": "osh80YCg_GM.mp4",
+      "youtube_url": "https://youtube.com/watch?v=osh80YCg_GM"
+    },
+    {
+      "title": "Lecture 19: Determinant Formulas and Cofactors",
+      "youtube_id": "23LLB9mNJvc",
+      "filename": "23LLB9mNJvc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=23LLB9mNJvc"
+    },
+    {
+      "title": "Basis and Dimension",
+      "youtube_id": "MMWqGD4Urso",
+      "filename": "MMWqGD4Urso.mp4",
+      "youtube_url": "https://youtube.com/watch?v=MMWqGD4Urso"
+    },
+    {
+      "title": "An Overview of Key Ideas",
+      "youtube_id": "OZxzHcW663g",
+      "filename": "OZxzHcW663g.mp4",
+      "youtube_url": "https://youtube.com/watch?v=OZxzHcW663g"
+    },
+    {
+      "title": "LU Decomposition",
+      "youtube_id": "-eA2D_rIcNA",
+      "filename": "-eA2D_rIcNA.mp4",
+      "youtube_url": "https://youtube.com/watch?v=-eA2D_rIcNA"
+    },
+    {
+      "title": "Solving Ax=0",
+      "youtube_id": "3cMyj8EKFGo",
+      "filename": "3cMyj8EKFGo.mp4",
+      "youtube_url": "https://youtube.com/watch?v=3cMyj8EKFGo"
+    },
+    {
+      "title": "Computing the Four Fundamental Subspaces",
+      "youtube_id": "D8u1LV9CnCk",
+      "filename": "D8u1LV9CnCk.mp4",
+      "youtube_url": "https://youtube.com/watch?v=D8u1LV9CnCk"
+    },
+    {
+      "title": "Recitation: Elimination with Matrices",
+      "youtube_id": "GLFg2UBMAxc",
+      "filename": "GLFg2UBMAxc.mp4",
+      "youtube_url": "https://youtube.com/watch?v=GLFg2UBMAxc"
+    },
+    {
+      "title": "Subspaces of Three Dimensional Space",
+      "youtube_id": "QQpvGlF_1Qo",
+      "filename": "QQpvGlF_1Qo.mp4",
+      "youtube_url": "https://youtube.com/watch?v=QQpvGlF_1Qo"
+    },
+    {
+      "title": "Solving Ax=b",
+      "youtube_id": "fjsPjh0B2tU",
+      "filename": "fjsPjh0B2tU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=fjsPjh0B2tU"
+    },
+    {
+      "title": "Matrix Spaces",
+      "youtube_id": "BaBoztM9Q1w",
+      "filename": "BaBoztM9Q1w.mp4",
+      "youtube_url": "https://youtube.com/watch?v=BaBoztM9Q1w"
+    },
+    {
+      "title": "Geometry of Linear Algebra",
+      "youtube_id": "My5w4MXWBew",
+      "filename": "My5w4MXWBew.mp4",
+      "youtube_url": "https://youtube.com/watch?v=My5w4MXWBew"
+    },
+    {
+      "title": "Inverse Matrices",
+      "youtube_id": "zWxhmBCdvFs",
+      "filename": "zWxhmBCdvFs.mp4",
+      "youtube_url": "https://youtube.com/watch?v=zWxhmBCdvFs"
+    },
+    {
+      "title": "Vector Subspaces",
+      "youtube_id": "S8DQZjE4V8U",
+      "filename": "S8DQZjE4V8U.mp4",
+      "youtube_url": "https://youtube.com/watch?v=S8DQZjE4V8U"
+    },
+    {
+      "title": "Graphs and Networks",
+      "youtube_id": "h0m2tsmSPTI",
+      "filename": "h0m2tsmSPTI.mp4",
+      "youtube_url": "https://youtube.com/watch?v=h0m2tsmSPTI"
+    },
+    {
+      "title": "Problem Solving: Least Squares Approximation",
+      "youtube_id": "AmQcoopBUTk",
+      "filename": "AmQcoopBUTk.mp4",
+      "youtube_url": "https://youtube.com/watch?v=AmQcoopBUTk"
+    },
+    {
+      "title": "Problem Solving: Determinants",
+      "youtube_id": "B17h10EF59g",
+      "filename": "B17h10EF59g.mp4",
+      "youtube_url": "https://youtube.com/watch?v=B17h10EF59g"
+    },
+    {
+      "title": "Problem Solving: Powers of a Matrix",
+      "youtube_id": "5IGTFgPqlkw",
+      "filename": "5IGTFgPqlkw.mp4",
+      "youtube_url": "https://youtube.com/watch?v=5IGTFgPqlkw"
+    },
+    {
+      "title": "Exam 2 Problem Solving",
+      "youtube_id": "pz3zyUO2gpM",
+      "filename": "pz3zyUO2gpM.mp4",
+      "youtube_url": "https://youtube.com/watch?v=pz3zyUO2gpM"
+    },
+    {
+      "title": "Exam 1 Problem Solving",
+      "youtube_id": "AMLekTJR5_U",
+      "filename": "AMLekTJR5_U.mp4",
+      "youtube_url": "https://youtube.com/watch?v=AMLekTJR5_U"
+    },
+    {
+      "title": "Problem Solving: Projection onto Subspaces",
+      "youtube_id": "t-n4a18AW08",
+      "filename": "t-n4a18AW08.mp4",
+      "youtube_url": "https://youtube.com/watch?v=t-n4a18AW08"
+    },
+    {
+      "title": "Problem Solving: Properties of Determinants",
+      "youtube_id": "55AoWKZZtww",
+      "filename": "55AoWKZZtww.mp4",
+      "youtube_url": "https://youtube.com/watch?v=55AoWKZZtww"
+    },
+    {
+      "title": "Problem Solving: Eigenvalues and Eigenvectors",
+      "youtube_id": "mVeuZzJdd1w",
+      "filename": "mVeuZzJdd1w.mp4",
+      "youtube_url": "https://youtube.com/watch?v=mVeuZzJdd1w"
+    },
+    {
+      "title": "Problem Solving: Markov Matrices",
+      "youtube_id": "wuyAeWE3iIM",
+      "filename": "wuyAeWE3iIM.mp4",
+      "youtube_url": "https://youtube.com/watch?v=wuyAeWE3iIM"
+    },
+    {
+      "title": "Problem Solving: Positive Definite Matrices and Minima",
+      "youtube_id": "cfn2ZUuWPd0",
+      "filename": "cfn2ZUuWPd0.mp4",
+      "youtube_url": "https://youtube.com/watch?v=cfn2ZUuWPd0"
+    },
+    {
+      "title": "Problem Solving: Orthogonal Vectors and Subspaces",
+      "youtube_id": "h9aDgvW59TU",
+      "filename": "h9aDgvW59TU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=h9aDgvW59TU"
+    },
+    {
+      "title": "Problem Solving: Gram-Schmidt Orthogonalization",
+      "youtube_id": "HEQuN0QELSQ",
+      "filename": "HEQuN0QELSQ.mp4",
+      "youtube_url": "https://youtube.com/watch?v=HEQuN0QELSQ"
+    },
+    {
+      "title": "Problem Solving: Determinants and Volume",
+      "youtube_id": "qEBi0K5wfOs",
+      "filename": "qEBi0K5wfOs.mp4",
+      "youtube_url": "https://youtube.com/watch?v=qEBi0K5wfOs"
+    },
+    {
+      "title": "Problem Solving: Differential Equations and exp(At)",
+      "youtube_id": "FzncDO1eSNI",
+      "filename": "FzncDO1eSNI.mp4",
+      "youtube_url": "https://youtube.com/watch?v=FzncDO1eSNI"
+    },
+    {
+      "title": "Problem Solving: Symmetric Matrices and Positive Definiteness",
+      "youtube_id": "lpnY5QVjU5w",
+      "filename": "lpnY5QVjU5w.mp4",
+      "youtube_url": "https://youtube.com/watch?v=lpnY5QVjU5w"
+    },
+    {
+      "title": "Problem Solving: Similar Matrices",
+      "youtube_id": "KUuxdk_V7To",
+      "filename": "KUuxdk_V7To.mp4",
+      "youtube_url": "https://youtube.com/watch?v=KUuxdk_V7To"
+    },
+    {
+      "title": "Problem Solving: Change of Basis",
+      "youtube_id": "rMv2rDiOTsI",
+      "filename": "rMv2rDiOTsI.mp4",
+      "youtube_url": "https://youtube.com/watch?v=rMv2rDiOTsI"
+    },
+    {
+      "title": "Problem Solving: Complex Matrices",
+      "youtube_id": "VYS9EYZ3gCo",
+      "filename": "VYS9EYZ3gCo.mp4",
+      "youtube_url": "https://youtube.com/watch?v=VYS9EYZ3gCo"
+    },
+    {
+      "title": "Problem Solving: Computing the Singular Value Decomposition",
+      "youtube_id": "pSbafxDHdgE",
+      "filename": "pSbafxDHdgE.mp4",
+      "youtube_url": "https://youtube.com/watch?v=pSbafxDHdgE"
+    },
+    {
+      "title": "Problem Solving: Pseudoinverses",
+      "youtube_id": "hSRcHTafkjE",
+      "filename": "hSRcHTafkjE.mp4",
+      "youtube_url": "https://youtube.com/watch?v=hSRcHTafkjE"
+    },
+    {
+      "title": "Problem Solving: Linear Transformations",
+      "youtube_id": "2uDvRUowBzg",
+      "filename": "2uDvRUowBzg.mp4",
+      "youtube_url": "https://youtube.com/watch?v=2uDvRUowBzg"
+    },
+    {
+      "title": "Exam 3 Problem Solving",
+      "youtube_id": "OsHY7ycgbaE",
+      "filename": "OsHY7ycgbaE.mp4",
+      "youtube_url": "https://youtube.com/watch?v=OsHY7ycgbaE"
+    },
+    {
+      "title": "Final Exam Problem Solving",
+      "youtube_id": "4PnArrxCZLE",
+      "filename": "4PnArrxCZLE.mp4",
+      "youtube_url": "https://youtube.com/watch?v=4PnArrxCZLE"
+    },
+    {
+      "title": "行列式和体积",
+      "youtube_id": "ZuWAwCEMeWE",
+      "filename": "ZuWAwCEMeWE.mp4",
+      "youtube_url": "https://youtube.com/watch?v=ZuWAwCEMeWE"
+    },
+    {
+      "title": "微分方程指数矩阵(At)",
+      "youtube_id": "fiSp3Ss-Yo8",
+      "filename": "fiSp3Ss-Yo8.mp4",
+      "youtube_url": "https://youtube.com/watch?v=fiSp3Ss-Yo8"
+    },
+    {
+      "title": "三维空间的子空间",
+      "youtube_id": "VyPIQ_8QqEk",
+      "filename": "VyPIQ_8QqEk.mp4",
+      "youtube_url": "https://youtube.com/watch?v=VyPIQ_8QqEk"
+    },
+    {
+      "title": "第二次考试例题",
+      "youtube_id": "ThxvK9t7DNo",
+      "filename": "ThxvK9t7DNo.mp4",
+      "youtube_url": "https://youtube.com/watch?v=ThxvK9t7DNo"
+    },
+    {
+      "title": "行列式",
+      "youtube_id": "ZyYGJc9jNno",
+      "filename": "ZyYGJc9jNno.mp4",
+      "youtube_url": "https://youtube.com/watch?v=ZyYGJc9jNno"
+    },
+    {
+      "title": "Recital (Mandarin)",
+      "youtube_id": "mgbjhzDndOY",
+      "filename": "mgbjhzDndOY.mp4",
+      "youtube_url": "https://youtube.com/watch?v=mgbjhzDndOY"
+    }
+  ]
+}

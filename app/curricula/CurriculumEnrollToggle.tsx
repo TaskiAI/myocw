@@ -42,11 +42,6 @@ export default function CurriculumEnrollToggle({
 
   return (
     <div className="flex items-center gap-2">
-      {isEnrolled && (
-        <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
-          Enrolled
-        </span>
-      )}
       <button
         type="button"
         onClick={handleToggle}

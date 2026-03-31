@@ -85,6 +85,16 @@ body {
   font-style: italic;
 }
 
+.katex-display {
+  background: #fafafa;
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+
+.dark .katex-display {
+  background: #18181b;
+}
+
 .hero-gradient {
   background: linear-gradient(135deg, #810020 0%, #a31f34 100%);
 }

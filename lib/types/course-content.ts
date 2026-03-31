@@ -33,6 +33,7 @@ export interface Problem {
   problem_label: string;
   question_text: string;
   solution_text: string | null;
+  explanation_text: string | null;
   ordering: number;
   created_at: string;
 }

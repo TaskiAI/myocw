@@ -1,32 +1,29 @@
-import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { getMyCourses } from "@/lib/queries/my-courses";
 import { getEnrolledCurriculaTracks } from "@/lib/queries/curricula";
 import CourseCard from "@/app/components/CourseCard";
 import CurriculumTrackCard from "@/app/components/CurriculumTrackCard";
+import AnimatedCard from "@/app/components/AnimatedCard";
+import FadeIn from "@/app/components/FadeIn";
+import LandingHero from "@/app/components/LandingHero";
+import Link from "next/link";
 
 function LandingPage() {
   return (
-    <main className="mx-auto max-w-6xl px-6 py-20">
-      <div className="flex flex-col items-start gap-6 max-w-2xl">
-        <h1 className="text-5xl font-bold text-zinc-900 leading-tight dark:text-zinc-100">
-        Commit to Learning.
-        </h1>
-        <p className="text-lg text-zinc-500 dark:text-zinc-400">
-        See your curiosity through! Watch lectures, interact with the material, and get feedback for your work.
-        Free forever.
-        </p>
-        <p className="text-sm text-zinc-400 dark:text-zinc-500">
-          Not affiliated with MIT. Content is sourced from MIT OpenCourseWare under CC BY-NC-SA 4.0.
-        </p>
-        <div className="flex items-center gap-4 pt-2">
-          <Link
-            href="/courses"
-            className="rounded-lg bg-[#750014] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5a0010]"
-          >
-            Browse Courses
-          </Link>
-        </div>
+    <main>
+      <div className="relative w-full">
+        <Image
+          src="/myocw.png"
+          alt="MIT Great Dome"
+          width={1500}
+          height={1001}
+          priority
+          className="w-full h-auto"
+        />
+      </div>
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        <LandingHero />
       </div>
     </main>
   );
@@ -51,7 +48,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
-      <div className="flex items-baseline justify-between">
+      <FadeIn className="flex items-baseline justify-between">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Welcome back</h1>
         {hasRecent && (
           <Link
@@ -61,10 +58,10 @@ export default async function Home() {
             Continue Learning
           </Link>
         )}
-      </div>
+      </FadeIn>
 
       {!hasActivity ? (
-        <div className="mt-8 rounded-xl border border-zinc-200 bg-white p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
+        <FadeIn delay={0.1} className="mt-8 rounded-xl border border-zinc-200 bg-white p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
           <p className="text-zinc-500 dark:text-zinc-400">You haven&apos;t started any courses yet.</p>
           <div className="mt-4 flex items-center justify-center gap-4">
             <Link
@@ -77,29 +74,30 @@ export default async function Home() {
               href="/curricula"
               className="rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              Explore Curricula
+              Explore Pathways
             </Link>
           </div>
-        </div>
+        </FadeIn>
       ) : (
         <>
           {hasEnrolled && (
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Enrolled Curricula</h2>
+            <FadeIn delay={0.1} className="mt-8">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Enrolled Pathways</h2>
               <div className="mt-4 space-y-4">
-                {enrolledTracks.map((track) => (
-                  <CurriculumTrackCard
-                    key={track.id}
-                    track={track}
-                    showEnrollmentControls
-                  />
+                {enrolledTracks.map((track, i) => (
+                  <AnimatedCard key={track.id} index={i}>
+                    <CurriculumTrackCard
+                      track={track}
+                      showEnrollmentControls
+                    />
+                  </AnimatedCard>
                 ))}
               </div>
-            </section>
+            </FadeIn>
           )}
 
           {hasRecent && (
-            <section className="mt-10">
+            <FadeIn delay={hasEnrolled ? 0.2 : 0.1} className="mt-10">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Recent Courses</h2>
                 <Link
@@ -110,15 +108,16 @@ export default async function Home() {
                 </Link>
               </div>
               <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {courses.slice(0, 6).map((course) => (
-                  <CourseCard
-                    key={course.id}
-                    course={course}
-                    progress={progress.get(course.id)}
-                  />
+                {courses.slice(0, 6).map((course, i) => (
+                  <AnimatedCard key={course.id} index={i}>
+                    <CourseCard
+                      course={course}
+                      progress={progress.get(course.id)}
+                    />
+                  </AnimatedCard>
                 ))}
               </div>
-            </section>
+            </FadeIn>
           )}
         </>
       )}

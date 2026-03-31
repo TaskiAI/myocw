@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instructor Insights — Linear Algebra</title>
+<link rel="stylesheet" href="../katex/katex.min.css">
+<style>
+.fill-blank{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+.blank-input{border:none;border-bottom:2px solid #aaa;background:transparent;font-size:inherit;font-family:inherit;width:100px;padding:1px 4px;outline:none;color:#1a1a1a}
+.blank-input:focus{border-bottom-color:#750014}
+.blank-input.correct{border-bottom-color:#1a7a4a;background:#f0faf4}
+.blank-input.incorrect{border-bottom-color:#c0392b;background:#fff5f5}
+.multi-choice{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 12px;vertical-align:middle}
+.mc-option{display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:.95em}
+.mc-option input{cursor:pointer}
+.check-btn{font-size:.78em;padding:2px 8px;border:1px solid #aaa;border-radius:3px;background:#f5f2ec;cursor:pointer;color:#444;line-height:1.6}
+.check-btn:hover{background:#ece9e4}
+.feedback{font-size:.85em;font-weight:bold;margin-left:2px}
+.feedback.correct{color:#1a7a4a}
+.feedback.incorrect{color:#c0392b}
+.free-response textarea{width:100%;max-width:500px;padding:8px;border:1px solid #ccc;border-radius:4px;font-family:inherit;font-size:.95em;resize:vertical}
+.child-section{margin-bottom:40px;padding-top:24px;border-top:2px solid #ece9e4}
+.child-section-title{font-size:1.15em;font-weight:bold;color:#333;margin-bottom:16px}
+.session-list{list-style:none;padding:0 0 0 16px;margin:4px 0 0}
+.session-list li{border-bottom:1px solid #f0ede8}
+.session-list li:last-child{border-bottom:none}
+.session-list a{display:block;padding:7px 4px;font-size:.88em;text-decoration:none;color:#555}
+.session-list a:hover{color:#750014}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.7;color:#1a1a1a;background:#fafaf8;max-width:800px;margin:0 auto;padding:24px 20px 60px}
+a{color:#750014}a:visited{color:#5a0010}
+h1{font-size:1.8em;margin:32px 0 12px;line-height:1.3}
+h2{font-size:1.4em;margin:28px 0 10px}
+h3{font-size:1.15em;margin:22px 0 8px}
+h4,h5,h6{font-size:1em;margin:18px 0 6px}
+p{margin:0 0 14px}
+ul,ol{margin:0 0 14px 24px}li{margin-bottom:4px}
+code{font-family:monospace;font-size:.9em;background:#f0ede8;padding:1px 5px;border-radius:3px}
+pre{background:#1a1a1a;color:#e8e8e8;padding:16px;border-radius:6px;overflow-x:auto;margin:0 0 16px}
+pre code{background:none;padding:0;color:inherit;font-size:.88em}
+.math-block{margin:16px 0;text-align:center;overflow-x:auto}
+.katex-display{overflow-x:auto}
+.site-header{border-bottom:1px solid #ddd;padding-bottom:12px;margin-bottom:24px}
+.site-header a{font-size:.9em;color:#666;text-decoration:none}
+.site-header a:hover{color:#750014}
+.section-title{font-size:1.5em;font-weight:bold;margin-bottom:4px}
+.breadcrumb{font-size:.85em;color:#888;margin-bottom:20px;text-transform:capitalize}
+.nav-strip{display:flex;justify-content:space-between;margin:32px 0 0;padding-top:16px;border-top:1px solid #ddd;font-size:.9em}
+.nav-strip a{color:#750014;text-decoration:none}
+.nav-strip a:hover{text-decoration:underline}
+.resource{margin-bottom:36px}
+.resource-title{font-size:1.1em;font-weight:bold;margin-bottom:10px;color:#333}
+video{width:100%;border-radius:4px;background:#000}
+.video-meta{font-size:.8em;color:#888;margin-top:8px}
+.problem{border:1px solid #e0ddd8;border-radius:6px;margin-bottom:20px;overflow:hidden}
+.problem-label{background:#f5f2ec;padding:8px 14px;font-size:.85em;font-weight:bold;color:#555;border-bottom:1px solid #e0ddd8}
+.problem-body{padding:14px}
+.problem-question{margin-bottom:14px}
+.solution-toggle{font-size:.85em;color:#750014;cursor:pointer;border:none;background:none;padding:0;text-decoration:underline;margin-bottom:10px;display:block}
+.solution{display:none;border-top:1px solid #e8e5e0;padding-top:12px;margin-top:8px}
+.solution.open{display:block}
+.solution-label{font-size:.8em;font-weight:bold;color:#888;margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase}
+.section-list{list-style:none;padding:0}
+.section-list li{border-bottom:1px solid #ece9e4}
+.section-list li:last-child{border-bottom:none}
+.section-list a{display:block;padding:12px 4px;text-decoration:none;color:#1a1a1a;font-size:.95em}
+.section-list a:hover{color:#750014}
+.section-type{font-size:.78em;color:#999;margin-left:8px;text-transform:capitalize}
+.course-meta{font-size:.88em;color:#666;margin-bottom:20px}
+.course-meta span{margin-right:16px}
+.footer{margin-top:48px;padding-top:16px;border-top:1px solid #ddd;font-size:.8em;color:#aaa}
+</style>
+</head>
+<body>
+<div class="site-header">
+<a href="../index.html">&larr; Linear Algebra</a>
+</div>
+<div class="section-title">Instructor Insights</div>
+<div class="breadcrumb">Instructor Insights</div>
+<div class="resource">
+<div class="resource-title">Instructor Insights</div>
+<video controls preload="metadata">
+  <source src="../videos/7UJ4CFRGd-U.mp4" type="video/mp4">
+  <p>Place <code>7UJ4CFRGd-U.mp4</code> in the videos/ folder to watch offline.</p>
+</video>
+<div class="video-meta">
+  YouTube: <a href="https://youtube.com/watch?v=7UJ4CFRGd-U" target="_blank" rel="noopener">youtube.com/watch?v=7UJ4CFRGd-U</a>
+  &mdash; save as <code>7UJ4CFRGd-U.mp4</code>
+</div>
+</div>
+<div class="resource">
+<div class="resource-title">Curriculum Information</div>
+<div class="content"><p>Instructor Insights</p>
+<p>In the following video, Professor Gilbert Strang describes various aspects of how he teaches 18.06 Linear Algebra.</p>
+<p>Download video</p>
+<p>Download transcript</p>
+<p>Curriculum Information</p>
+<p>Prerequisites</p>
+<p>Mathematics GIR</p>
+<p>Requirements Satisfied</p>
+<p>18.06 fulfills the linear algebra requirement for the Bachelor of Science in Mathematics.</p>
+<p>Offered</p>
+<p>Every semester</p>
+<p>Assessment</p>
+<p>The students’ grades were based on the following activities:</p>
+<p>15% Problem sets</p>
+<p>45% Three one-hour exams</p>
+<p>40% Final exam</p>
+<p>Student Information</p>
+<p>Enrollment</p>
+<p>About 180 students</p>
+<p>Breakdown by Year</p>
+<p>Mostly undergraduates</p>
+<p>Breakdown by Major</p>
+<p>Many computer science &amp; engineering and management majors</p>
+<p>How Student Time Was Spent</p>
+<p>During an average week, students were expected to spend 12 hours on the course, roughly divided as follows:</p>
+<p>Lecture</p>
+<p>Typically meets 3 times per week for 1 hour per session; 38 sessions total; mandatory attendance.</p>
+<p>Recitation</p>
+<p>Typically meets 1 time per week for 1 hour each session.</p>
+<p>Out of Class</p>
+<p>Completing problem sets; studying for exams.</p>
+<p>Course Team Roles</p>
+<p>Lead Instructor (Professor Strang)</p>
+<p>Professor Strang prepared and delivered lectures; prepared problem sets.</p>
+<p>Teaching Assistants</p>
+<p>Five teaching assistants conducted recitation sessions; held office hours and fielded student questions by email.</p></div>
+</div>
+<div class="nav-strip">
+<div></div>
+<div><a href="unit-i-ax-b-and-the-four-subspaces.html">Unit I: Ax = b and the Four Subspaces</a> &rarr;</div>
+</div>
+<div class="footer">MIT OpenCourseWare content is licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>. Generated by myOCW.</div>
+<script>
+document.querySelectorAll('.solution-toggle').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var s=this.nextElementSibling;
+    if(s){s.classList.toggle('open');this.textContent=s.classList.contains('open')?'Hide solution':'Show solution';}
+  });
+});
+function checkBlank(id){
+  var wrap=document.getElementById(id);
+  if(!wrap)return;
+  var input=wrap.querySelector('.blank-input');
+  var fb=wrap.querySelector('.feedback');
+  if(!input||!fb)return;
+  var answer=input.dataset.answer||'';
+  var correct=input.value.trim().toLowerCase()===answer.trim().toLowerCase();
+  input.classList.toggle('correct',correct);
+  input.classList.toggle('incorrect',!correct);
+  fb.textContent=correct?'✓':'✗';
+  fb.className='feedback '+(correct?'correct':'incorrect');
+}
+function checkMC(id,answer){
+  var wrap=document.getElementById(id);
+  if(!wrap)return;
+  var sel=wrap.querySelector('input[type=radio]:checked');
+  var fb=wrap.querySelector('.feedback');
+  if(!fb)return;
+  if(!sel){fb.textContent='Select an option';fb.className='feedback incorrect';return;}
+  var correct=sel.value.trim().toLowerCase()===answer.trim().toLowerCase();
+  fb.textContent=correct?'✓':'✗';
+  fb.className='feedback '+(correct?'correct':'incorrect');
+}
+</script>
+</body>
+</html>

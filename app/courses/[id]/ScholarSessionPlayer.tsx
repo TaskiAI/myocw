@@ -265,8 +265,13 @@ export default function ScholarSessionPlayer({
   }, [parentUnit, sessions]);
 
   const isLastResource = resourceIdx >= navigableResources.length - 1;
+  const isFirstSession = sessionIdx === 0;
   const isLastSession = sessionIdx >= sessions.length - 1;
+  const prevSession = !isFirstSession ? sessions[sessionIdx - 1] : null;
   const nextSession = !isLastSession ? sessions[sessionIdx + 1] : null;
+  const prevSessionUnit = prevSession
+    ? allSections.find((s) => s.id === prevSession.parent_id)
+    : null;
   const nextSessionUnit = nextSession
     ? allSections.find((s) => s.id === nextSession.parent_id)
     : null;
@@ -377,6 +382,23 @@ export default function ScholarSessionPlayer({
     setSessionIdx(nextIdx);
     setResourceIdx(0);
     onSessionChange?.(nextIdx);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [sessions, sessionIdx, onSessionChange, navigableResources, resourceIdx, markDocumentCompleted, sessionOverview]);
+
+  const goToPrevSession = useCallback(() => {
+    const prevIdx = sessionIdx - 1;
+    if (prevIdx < 0) return;
+    const current = navigableResources[resourceIdx];
+    if (current) markDocumentCompleted(current);
+    if (sessionOverview) markDocumentCompleted(sessionOverview);
+    const currentParentId = sessions[sessionIdx]?.parent_id;
+    const targetParentId = sessions[prevIdx]?.parent_id;
+    if (targetParentId && targetParentId !== currentParentId) {
+      setShowUnitOverview(true);
+    }
+    setSessionIdx(prevIdx);
+    setResourceIdx(0);
+    onSessionChange?.(prevIdx);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [sessions, sessionIdx, onSessionChange, navigableResources, resourceIdx, markDocumentCompleted, sessionOverview]);
 
@@ -527,39 +549,85 @@ export default function ScholarSessionPlayer({
 
     if (activeResource.youtube_id) {
       return (
-        <YouTubePlayer
-          key={activeResource.youtube_id}
-          youtubeId={activeResource.youtube_id}
-          title={activeResource.title}
-          onVideoEnded={handleVideoEnded}
-        />
+        <div className="w-[60%]">
+          <h2 className="mb-4 text-2xl font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+            {activeResource.title}
+          </h2>
+          <YouTubePlayer
+            key={activeResource.youtube_id}
+            youtubeId={activeResource.youtube_id}
+            title={activeResource.title}
+            onVideoEnded={handleVideoEnded}
+          />
+          {completedVideos.has(activeResource.id) && (
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Completed
+            </span>
+          )}
+        </div>
       );
     }
 
     if (activeResource.archive_url) {
       return (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-black dark:border-zinc-700">
-          <div className="relative aspect-video w-full">
-            <video
-              key={activeResource.archive_url}
-              src={activeResource.archive_url}
-              controls
-              className="absolute inset-0 h-full w-full"
-            >
-              <track kind="captions" />
-            </video>
+        <div className="w-[60%]">
+          <h2 className="mb-4 text-2xl font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+            {activeResource.title}
+          </h2>
+          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-black dark:border-zinc-700">
+            <div className="relative aspect-video w-full">
+              <video
+                key={activeResource.archive_url}
+                src={activeResource.archive_url}
+                controls
+                className="absolute inset-0 h-full w-full"
+              >
+                <track kind="captions" />
+              </video>
+            </div>
           </div>
+          {completedVideos.has(activeResource.id) && (
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Completed
+            </span>
+          )}
         </div>
       );
+    }
+
+    // Show ProblemSetView for problem_set resources that have interactive problems
+    // (otherwise fall through to content_text rendering which uses MarkdownContent/rehype-katex)
+    if (activeResource.resource_type === "problem_set") {
+      const resourceProblems = problems.filter((p) => p.resource_id === activeResource.id);
+      const hasInteractive = resourceProblems.some((p) =>
+        /<(FillInBlank|MultipleChoice|FreeResponse)\s/.test(p.question_text)
+      );
+      if (hasInteractive && resourceProblems.length > 0) {
+        const pdfResources = [activeResource, ...(activeSolution ? [activeSolution] : [])].filter(
+          (r) => r.pdf_path
+        );
+        return (
+          <ProblemSetView
+            problems={resourceProblems}
+            pdfResources={pdfResources}
+            courseId={courseId}
+            canEdit={canEditContent}
+            defaultProblemResourceId={activeResource.id}
+          />
+        );
+      }
     }
 
     if (activeResource.content_text) {
       return (
         <div>
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-              {activeResource.title}
-            </h2>
+          <div className="mb-6 flex items-center justify-end">
             {canEditContent && (
               <button
                 onClick={() => {
@@ -609,31 +677,14 @@ export default function ScholarSessionPlayer({
               </div>
             </div>
           ) : (
-            <MarkdownContent>
-              {stripOcwBoilerplate(activeResource.content_text)}
-            </MarkdownContent>
+            <div className="mx-auto max-w-[75%]">
+              <MarkdownContent>
+                {stripOcwBoilerplate(activeResource.content_text)}
+              </MarkdownContent>
+            </div>
           )}
         </div>
       );
-    }
-
-    // Show ProblemSetView for problem_set resources that have parsed problems
-    if (activeResource.resource_type === "problem_set") {
-      const resourceProblems = problems.filter((p) => p.resource_id === activeResource.id);
-      if (resourceProblems.length > 0) {
-        const pdfResources = [activeResource, ...(activeSolution ? [activeSolution] : [])].filter(
-          (r) => r.pdf_path
-        );
-        return (
-          <ProblemSetView
-            problems={resourceProblems}
-            pdfResources={pdfResources}
-            courseId={courseId}
-            canEdit={canEditContent}
-            defaultProblemResourceId={activeResource.id}
-          />
-        );
-      }
     }
 
     if (activeResource.pdf_path) {
@@ -697,34 +748,30 @@ export default function ScholarSessionPlayer({
         </div>
 
         {unitOverviewResource?.content_text && (
-          <div className="mb-8 rounded-xl border border-zinc-200 bg-zinc-50/80 px-6 py-5 dark:border-zinc-700 dark:bg-zinc-800/50">
-            <div className="text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              {stripOcwBoilerplate(unitOverviewResource.content_text).split("\n\n").map((paragraph, i) => (
-                <p key={i} className={i > 0 ? "mt-3" : ""}>
-                  {paragraph}
-                </p>
-              ))}
-            </div>
+          <div className="mb-8 text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+            {stripOcwBoilerplate(unitOverviewResource.content_text).split("\n\n").map((paragraph, i) => (
+              <p key={i} className={i > 0 ? "mt-3" : ""}>
+                {paragraph}
+              </p>
+            ))}
           </div>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-[#e0bfbf]/20 bg-[#f3f4f5] dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="px-6 py-4">
-            <h3 className="text-sm font-bold text-[#191c1d] dark:text-zinc-100">
-              Sessions in this unit
-            </h3>
-            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-              {unitSessions.length} session{unitSessions.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <div className="border-t border-[#e0bfbf]/10 dark:border-zinc-800">
+        <div>
+          <h3 className="text-sm font-bold text-[#191c1d] dark:text-zinc-100">
+            Sessions in this unit
+          </h3>
+          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+            {unitSessions.length} session{unitSessions.length !== 1 ? "s" : ""}
+          </p>
+          <div className="mt-4 divide-y divide-zinc-100 dark:divide-zinc-800">
             {unitSessions.map((session, i) => {
               const globalIdx = sessions.indexOf(session);
               return (
                 <button
                   key={session.id}
                   onClick={() => goToSessionFromOverview(globalIdx)}
-                  className="group flex w-full items-center gap-4 border-b border-[#e0bfbf]/5 px-6 py-4 text-left transition-colors last:border-b-0 hover:bg-white dark:border-zinc-800/50 dark:hover:bg-zinc-800"
+                  className="group flex w-full items-center gap-4 py-3.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                 >
                   <span className="font-mono text-sm text-zinc-300 dark:text-zinc-600">
                     {String(i + 1).padStart(2, "0")}
@@ -778,20 +825,32 @@ export default function ScholarSessionPlayer({
           </button>
         )}
 
-        {/* Current unit header */}
-        {parentUnit && (
+        {/* Current unit header or standalone section header */}
+        {parentUnit ? (
           <div className="px-4 pb-2">
-            <button
-              onClick={() => setShowUnitOverview(true)}
-              className="text-left text-xs font-bold uppercase tracking-wider text-[#810020]/60 transition-colors hover:text-[#810020]"
-            >
-              {parentUnit.title}
-            </button>
+            {unitOverviewResource ? (
+              <button
+                onClick={() => setShowUnitOverview(true)}
+                className="text-left text-xs font-bold uppercase tracking-wider text-[#810020]/60 transition-colors hover:text-[#810020]"
+              >
+                {parentUnit.title}
+              </button>
+            ) : (
+              <span className="text-xs font-bold uppercase tracking-wider text-[#810020]/60">
+                {parentUnit.title}
+              </span>
+            )}
             {progressLoaded && (
               <p className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500">
                 {unitCompletionCount(unitSessions)}/{unitSessions.length} completed
               </p>
             )}
+          </div>
+        ) : currentSession && (
+          <div className="px-4 pb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#810020]/60">
+              {currentSession.title}
+            </span>
           </div>
         )}
 
@@ -799,48 +858,113 @@ export default function ScholarSessionPlayer({
 
         {/* Sessions in current unit */}
         <nav className="flex-1 overflow-y-auto pb-4">
-          {/* Instructor overview as session 0 */}
-          {unitOverviewResource && (
-            <button
-              onClick={() => setShowUnitOverview(true)}
-              className={`flex w-full items-center gap-2 py-2 pl-4 pr-4 text-left text-[13px] transition-colors ${
-                showUnitOverview
-                  ? "border-l-2 border-[#750014] bg-[#750014]/5 font-medium text-[#750014]"
-                  : "border-l-2 border-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
-              }`}
-            >
-              <svg className="h-3.5 w-3.5 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-              </svg>
-              <span className="min-w-0 truncate">Instructor Overview</span>
-            </button>
+          {/* Show navigable resources when viewing a standalone section (no parent unit) */}
+          {!parentUnit && navigableResources.length > 0 ? (
+            <>
+              {navigableResources.map((res, idx) => {
+                const isActive = idx === resourceIdx;
+                return (
+                  <button
+                    key={res.id}
+                    onClick={() => setResourceIdx(idx)}
+                    className={`flex w-full items-center gap-2 py-2 pl-4 pr-4 text-left text-[13px] transition-colors ${
+                      isActive
+                        ? "border-l-2 border-[#750014] bg-[#750014]/5 font-medium text-[#750014]"
+                        : "border-l-2 border-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
+                    }`}
+                  >
+                    {res.resource_type === "video" ? (
+                      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+                      </svg>
+                    ) : (
+                      <span className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span className="min-w-0 truncate">{res.title}</span>
+                  </button>
+                );
+              })}
+              {navigableResources.length > 1 && (
+                <div className="mx-4 mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                  <button
+                    onClick={() => setResourceIdx((i) => Math.max(0, i - 1))}
+                    disabled={resourceIdx === 0}
+                    className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                  </button>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    {resourceIdx + 1} / {navigableResources.length}
+                  </span>
+                  <button
+                    onClick={() => setResourceIdx((i) => Math.min(navigableResources.length - 1, i + 1))}
+                    disabled={isLastResource}
+                    className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {unitSessions.map((session) => {
+                const globalIdx = sessionToGlobalIdx.get(session.id) ?? 0;
+                const isActive = globalIdx === sessionIdx && !showUnitOverview;
+                const completed = isSessionCompleted(session);
+                return (
+                  <button
+                    key={session.id}
+                    ref={isActive ? activeSessionRef : undefined}
+                    onClick={() => goToSession(globalIdx)}
+                    className={`flex w-full items-center gap-2 py-2 pl-4 pr-4 text-left text-[13px] transition-colors ${
+                      isActive
+                        ? "border-l-2 border-[#750014] bg-[#750014]/5 font-medium text-[#750014]"
+                        : "border-l-2 border-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
+                    }`}
+                  >
+                    {completed ? (
+                      <svg className="h-3.5 w-3.5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <span className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span className="min-w-0 truncate">{session.title}</span>
+                  </button>
+                );
+              })}
+              {sessions.length > 1 && (
+                <div className="mx-4 mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                  <button
+                    onClick={() => goToSession(sessionIdx - 1)}
+                    disabled={sessionIdx === 0}
+                    className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                  </button>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    {sessionIdx + 1} / {sessions.length}
+                  </span>
+                  <button
+                    onClick={() => goToSession(sessionIdx + 1)}
+                    disabled={sessionIdx >= sessions.length - 1}
+                    className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </>
           )}
-          {unitSessions.map((session) => {
-            const globalIdx = sessionToGlobalIdx.get(session.id) ?? 0;
-            const isActive = globalIdx === sessionIdx && !showUnitOverview;
-            const completed = isSessionCompleted(session);
-            return (
-              <button
-                key={session.id}
-                ref={isActive ? activeSessionRef : undefined}
-                onClick={() => goToSession(globalIdx)}
-                className={`flex w-full items-center gap-2 py-2 pl-4 pr-4 text-left text-[13px] transition-colors ${
-                  isActive
-                    ? "border-l-2 border-[#750014] bg-[#750014]/5 font-medium text-[#750014]"
-                    : "border-l-2 border-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
-                }`}
-              >
-                {completed ? (
-                  <svg className="h-3.5 w-3.5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <span className="h-3.5 w-3.5 shrink-0" />
-                )}
-                <span className="min-w-0 truncate">{session.title}</span>
-              </button>
-            );
-          })}
         </nav>
       </div>
     );
@@ -936,11 +1060,16 @@ export default function ScholarSessionPlayer({
                       paddingRight: isLast ? "16px" : "24px",
                       paddingTop: "12px",
                       paddingBottom: "12px",
-                      marginLeft: i > 0 ? "-4px" : undefined,
+                      marginLeft: i > 0 ? "-14px" : undefined,
                     }}
                   >
                     <ResourceIcon resource={resource} completed={!isActive && completed} />
-                    <span>{resource.title}</span>
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className={`text-[10px] font-medium uppercase tracking-wide ${isActive ? "text-zinc-300 dark:text-zinc-500" : "text-zinc-400 dark:text-zinc-500"}`}>
+                        {resourceTypeLabel(resource.resource_type)}
+                      </span>
+                      <span>{resource.title}</span>
+                    </div>
                   </button>
                 );
               })}
@@ -1002,60 +1131,89 @@ export default function ScholarSessionPlayer({
                 </div>
               )}
 
-              {renderActiveResource()}
+              {activeResource && (activeResource.youtube_id || activeResource.archive_url) ? (
+                <div className="flex gap-6">
+                  {renderActiveResource()}
+                  <div className="flex flex-1 flex-col pt-1">
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      Interactive Questions
+                    </h3>
+                    <div className="mt-3 border-t border-zinc-200 dark:border-zinc-700" />
+                    <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">Coming soon</p>
+                  </div>
+                </div>
+              ) : (
+                renderActiveResource()
+              )}
 
-              {/* Title + completion badge below video */}
-              {activeResource && (activeResource.youtube_id || activeResource.archive_url) && (
-                <div className="mt-4">
-                  <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                    {activeResource.title}
-                  </h2>
-                  {completedVideos.has(activeResource.id) && (
-                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {/* Prev / Next navigation */}
+              {navigableResources.length > 1 || prevSession || nextSession ? (
+                <div className="mt-8 flex items-stretch gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                  {/* Left: prev resource, or prev session if at first resource */}
+                  {resourceIdx > 0 ? (
+                    <button
+                      onClick={() => goToResource(resourceIdx - 1)}
+                      className="group flex flex-1 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-left transition-all duration-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-100/50 active:scale-[0.98] dark:border-blue-800 dark:bg-blue-950/30 dark:hover:border-blue-700 dark:hover:shadow-blue-900/30"
+                    >
+                      <div className="flex items-center gap-3">
+                        <svg className="h-4 w-4 shrink-0 text-blue-700 transition-transform duration-200 group-hover:-translate-x-1 dark:text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                        </svg>
+                        <span className="max-w-[200px] truncate text-sm font-semibold text-blue-800 dark:text-blue-300">
+                          {navigableResources[resourceIdx - 1].title}
+                        </span>
+                      </div>
+                    </button>
+                  ) : prevSession ? (
+                    <button
+                      onClick={goToPrevSession}
+                      className="group flex flex-1 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-left transition-all duration-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-100/50 active:scale-[0.98] dark:border-blue-800 dark:bg-blue-950/30 dark:hover:border-blue-700 dark:hover:shadow-blue-900/30"
+                    >
+                      <div className="flex items-center gap-3">
+                        <svg className="h-4 w-4 shrink-0 text-blue-700 transition-transform duration-200 group-hover:-translate-x-1 dark:text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                        </svg>
+                        <span className="max-w-[200px] truncate text-sm font-semibold text-blue-800 dark:text-blue-300">
+                          {prevSession.title}
+                        </span>
+                      </div>
+                    </button>
+                  ) : <div className="flex-1" />}
+
+                  {/* Right: next resource, or next session if at last resource, or "Course complete" */}
+                  {resourceIdx < navigableResources.length - 1 ? (
+                    <button
+                      onClick={() => goToResource(resourceIdx + 1)}
+                      className="group flex flex-1 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-left transition-all duration-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-100/50 active:scale-[0.98] dark:border-blue-800 dark:bg-blue-950/30 dark:hover:border-blue-700 dark:hover:shadow-blue-900/30"
+                    >
+                      <span className="max-w-[200px] truncate text-sm font-semibold text-blue-800 dark:text-blue-300">
+                        {navigableResources[resourceIdx + 1].title}
+                      </span>
+                      <svg className="h-4 w-4 shrink-0 text-blue-700 transition-transform duration-200 group-hover:translate-x-1 dark:text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                       </svg>
-                      Completed
-                    </span>
+                    </button>
+                  ) : nextSession ? (
+                    <button
+                      onClick={goToNextSession}
+                      className="group flex flex-1 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-left transition-all duration-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-100/50 active:scale-[0.98] dark:border-blue-800 dark:bg-blue-950/30 dark:hover:border-blue-700 dark:hover:shadow-blue-900/30"
+                    >
+                      <span className="max-w-[200px] truncate text-sm font-semibold text-blue-800 dark:text-blue-300">
+                        {nextSession.title}
+                      </span>
+                      <svg className="h-4 w-4 shrink-0 text-blue-700 transition-transform duration-200 group-hover:translate-x-1 dark:text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="flex flex-1 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+                      <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500">
+                        Course complete
+                      </span>
+                    </div>
                   )}
                 </div>
-              )}
-
-              {/* Next session CTA (when on last resource) */}
-              {isLastResource && !isLastSession && nextSession && (
-                <div className="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-700">
-                  <button
-                    onClick={goToNextSession}
-                    className="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-left transition-colors hover:border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#810020]/10">
-                      <svg className="h-5 w-5 text-[#810020]" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8.689c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062a1.125 1.125 0 01-1.683-.977V8.69z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                        Up next{nextSessionUnit ? ` \u00B7 ${nextSessionUnit.title}` : ""}
-                      </p>
-                      <p className="mt-0.5 truncate text-sm font-semibold text-[#191c1d] dark:text-zinc-100">
-                        {nextSession.title}
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-
-              {/* Course complete indicator */}
-              {isLastResource && isLastSession && (
-                <div className="mt-8 border-t border-zinc-200 pt-6 text-center dark:border-zinc-700">
-                  <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                    Course complete
-                  </span>
-                </div>
-              )}
+              ) : null}
 
 
             </>

@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import "katex/dist/katex.min.css";
 import katex from "katex";
+import { parseCompPlaceholderAt } from "@/app/components/interactive-problems/parse-tags";
+import type { ComponentSlot } from "@/app/components/interactive-problems/parse-tags";
 
 type MathSegment = {
   type: "inline" | "display";
@@ -16,7 +18,8 @@ type InlineNode =
   | { type: "em"; children: InlineNode[] }
   | { type: "code"; content: string }
   | { type: "link"; href: string; children: InlineNode[] }
-  | { type: "break" };
+  | { type: "break" }
+  | { type: "component"; slotIndex: number };
 
 const PLACEHOLDER_PREFIX = "\uE000MATH";
 const PLACEHOLDER_SUFFIX = "\uE001";
@@ -28,11 +31,21 @@ function mathPlaceholder(index: number): string {
 function tokenizeMath(source: string): { markdownSource: string; segments: MathSegment[] } {
   const segments: MathSegment[] = [];
   const markdownSource = source.replace(
-    /\$\$([\s\S]*?)\$\$|\$([^$\n]+?)\$/g,
-    (_match, displayContent: string | undefined, inlineContent: string | undefined) => {
+    /\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\$([^$\n]+?)\$|\\\(([\s\S]*?)\\\)/g,
+    (
+      _match,
+      ddContent: string | undefined,
+      bracketContent: string | undefined,
+      inlineContent: string | undefined,
+      parenContent: string | undefined,
+    ) => {
       const nextIndex = segments.length;
-      if (displayContent !== undefined) {
-        segments.push({ type: "display", content: displayContent });
+      if (ddContent !== undefined) {
+        segments.push({ type: "display", content: ddContent });
+      } else if (bracketContent !== undefined) {
+        segments.push({ type: "display", content: bracketContent });
+      } else if (parenContent !== undefined) {
+        segments.push({ type: "inline", content: parenContent });
       } else {
         segments.push({ type: "inline", content: inlineContent ?? "" });
       }
@@ -73,20 +86,17 @@ function isStandaloneDisplayMath(line: string, segments: MathSegment[]): number 
 
 function renderMathSegment(segment: MathSegment, key: string) {
   try {
-    // Use MathML output — Google Translate doesn't touch MathML elements
-    // (<mi>, <mo>, <mn>, etc.), which solves the 'y' translation problem
     const html = katex.renderToString(segment.content.trim(), {
       displayMode: segment.type === "display",
       throwOnError: false,
       trust: true,
-      output: "mathml",
     });
 
     return (
       <span
         key={key}
         dangerouslySetInnerHTML={{ __html: html }}
-        className={segment.type === "display" ? "my-2 block overflow-x-auto" : ""}
+        className={segment.type === "display" ? "katex-display my-2 block" : ""}
       />
     );
   } catch {
@@ -167,6 +177,14 @@ function parseInlineMarkdown(source: string): InlineNode[] {
       pushText();
       nodes.push({ type: "math", segmentIndex: placeholder.segmentIndex });
       index = placeholder.endIndex;
+      continue;
+    }
+
+    const compPlaceholder = parseCompPlaceholderAt(source, index);
+    if (compPlaceholder) {
+      pushText();
+      nodes.push({ type: "component", slotIndex: compPlaceholder.slotIndex });
+      index = compPlaceholder.endIndex;
       continue;
     }
 
@@ -278,7 +296,8 @@ function parseInlineMarkdown(source: string): InlineNode[] {
 function renderInlineNodes(
   nodes: InlineNode[],
   segments: MathSegment[],
-  keyPrefix: string
+  keyPrefix: string,
+  renderComponent?: (slotIndex: number, key: string) => ReactNode
 ): ReactNode[] {
   return nodes.map((node, index) => {
     const key = `${keyPrefix}-${index}`;
@@ -288,10 +307,12 @@ function renderInlineNodes(
         return node.content;
       case "math":
         return renderMathSegment(segments[node.segmentIndex], key);
+      case "component":
+        return renderComponent ? renderComponent(node.slotIndex, key) : null;
       case "strong":
-        return <strong key={key}>{renderInlineNodes(node.children, segments, key)}</strong>;
+        return <strong key={key}>{renderInlineNodes(node.children, segments, key, renderComponent)}</strong>;
       case "em":
-        return <em key={key}>{renderInlineNodes(node.children, segments, key)}</em>;
+        return <em key={key}>{renderInlineNodes(node.children, segments, key, renderComponent)}</em>;
       case "code":
         return (
           <code key={key} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[0.95em] text-zinc-900">
@@ -307,7 +328,7 @@ function renderInlineNodes(
             rel={node.href.startsWith("#") || node.href.startsWith("/") ? undefined : "noopener noreferrer"}
             className="text-[#750014] underline underline-offset-2 hover:text-[#5a0010]"
           >
-            {renderInlineNodes(node.children, segments, key)}
+            {renderInlineNodes(node.children, segments, key, renderComponent)}
           </a>
         );
       case "break":
@@ -338,6 +359,13 @@ function isCodeFenceLine(line: string): boolean {
   return /^```/.test(line.trim());
 }
 
+function isStandaloneComponent(line: string): number | null {
+  const trimmed = line.trim();
+  const match = trimmed.match(/^\uE002COMP(\d+)\uE003$/);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
 function isBlockStart(line: string, segments: MathSegment[]): boolean {
   return (
     line.trim().length === 0 ||
@@ -346,12 +374,19 @@ function isBlockStart(line: string, segments: MathSegment[]): boolean {
     isUnorderedListLine(line) ||
     isOrderedListLine(line) ||
     isCodeFenceLine(line) ||
-    isStandaloneDisplayMath(line, segments) !== null
+    isStandaloneDisplayMath(line, segments) !== null ||
+    isStandaloneComponent(line) !== null
   );
 }
 
-function renderHeading(level: number, content: string, segments: MathSegment[], key: string) {
-  const inlineNodes = renderInlineNodes(parseInlineMarkdown(content), segments, `${key}-inline`);
+function renderHeading(
+  level: number,
+  content: string,
+  segments: MathSegment[],
+  key: string,
+  renderComponent?: (slotIndex: number, key: string) => ReactNode
+) {
+  const inlineNodes = renderInlineNodes(parseInlineMarkdown(content), segments, `${key}-inline`, renderComponent);
 
   switch (level) {
     case 1:
@@ -384,7 +419,8 @@ function renderHeading(level: number, content: string, segments: MathSegment[], 
 function renderMarkdownBlocks(
   source: string,
   segments: MathSegment[],
-  keyPrefix: string
+  keyPrefix: string,
+  renderComponent?: (slotIndex: number, key: string) => ReactNode
 ): ReactNode[] {
   const lines = source.split(/\r?\n/);
   const blocks: ReactNode[] = [];
@@ -395,6 +431,14 @@ function renderMarkdownBlocks(
     const line = lines[lineIndex];
 
     if (line.trim().length === 0) {
+      lineIndex += 1;
+      continue;
+    }
+
+    const standaloneCompIndex = isStandaloneComponent(line);
+    if (standaloneCompIndex !== null && renderComponent) {
+      blocks.push(renderComponent(standaloneCompIndex, `${keyPrefix}-block-${blockIndex}`));
+      blockIndex += 1;
       lineIndex += 1;
       continue;
     }
@@ -437,7 +481,8 @@ function renderMarkdownBlocks(
           headingMatch[1].length,
           headingMatch[2],
           segments,
-          `${keyPrefix}-block-${blockIndex}`
+          `${keyPrefix}-block-${blockIndex}`,
+          renderComponent
         )
       );
       blockIndex += 1;
@@ -457,7 +502,7 @@ function renderMarkdownBlocks(
           key={`${keyPrefix}-block-${blockIndex}`}
           className="mb-3 border-l-4 border-zinc-200 pl-4 text-zinc-700 last:mb-0"
         >
-          {renderMarkdownBlocks(quoteLines.join("\n"), segments, `${keyPrefix}-quote-${blockIndex}`)}
+          {renderMarkdownBlocks(quoteLines.join("\n"), segments, `${keyPrefix}-quote-${blockIndex}`, renderComponent)}
         </blockquote>
       );
       blockIndex += 1;
@@ -490,7 +535,8 @@ function renderMarkdownBlocks(
               {renderInlineNodes(
                 parseInlineMarkdown(item),
                 segments,
-                `${keyPrefix}-block-${blockIndex}-item-${itemIndex}`
+                `${keyPrefix}-block-${blockIndex}-item-${itemIndex}`,
+                renderComponent
               )}
             </li>
           ))}
@@ -515,7 +561,8 @@ function renderMarkdownBlocks(
         {renderInlineNodes(
           parseInlineMarkdown(paragraphLines.join("\n")),
           segments,
-          `${keyPrefix}-block-${blockIndex}`
+          `${keyPrefix}-block-${blockIndex}`,
+          renderComponent
         )}
       </div>
     );
@@ -525,11 +572,22 @@ function renderMarkdownBlocks(
   return blocks;
 }
 
+interface MathTextProps {
+  children: string;
+  /** Pre-extracted component slots (from tokenizeInteractiveComponents). */
+  componentSlots?: ComponentSlot[];
+  /** Render callback for interactive component placeholders. */
+  renderComponent?: (slotIndex: number, key: string) => ReactNode;
+}
+
 /**
  * Renders Markdown plus LaTeX, while protecting `$...$` / `$$...$$` math
  * from Markdown parsing so emphasis, lists, and links do not interfere with KaTeX.
+ *
+ * When `componentSlots` and `renderComponent` are provided, also handles
+ * interactive component placeholders (`<FillInBlank />`, etc.).
  */
-export default function MathText({ children }: { children: string }) {
+export default function MathText({ children, renderComponent }: MathTextProps) {
   const { markdownSource, segments } = tokenizeMath(children);
-  return <>{renderMarkdownBlocks(markdownSource, segments, "math")}</>;
+  return <>{renderMarkdownBlocks(markdownSource, segments, "math", renderComponent)}</>;
 }

@@ -12,13 +12,17 @@
     "download-video-catalog": "tsx --env-file=.env.local scripts/download-video-catalog.ts",
     "fix-video-resources": "tsx --env-file=.env.local scripts/fix-video-resources.ts",
     "index-catalog": "tsx --env-file=.env.local scripts/index-catalog.ts",
-    "parse-problems": "tsx --env-file=.env.local scripts/parse-problems.ts",
-    "parse-problem-catalog": "tsx --env-file=.env.local scripts/parse-problem-catalog.ts",
     "batch-process": "tsx --env-file=.env.local scripts/batch-process.ts",
     "wipe-content": "tsx --env-file=.env.local scripts/wipe-content.ts",
     "ingest-sidebar": "tsx --env-file=.env.local scripts/ingest-sidebar.ts",
     "parse-markdown": "tsx --env-file=.env.local scripts/parse-content-markdown.ts",
-    "upload-figure": "tsx --env-file=.env.local scripts/upload-figure.ts"
+    "match-solutions": "tsx --env-file=.env.local scripts/match-solutions.ts",
+    "parse-problems": "tsx --env-file=.env.local scripts/parse-interactive-problems.ts",
+    "upload-figure": "tsx --env-file=.env.local scripts/upload-figure.ts",
+    "generate-bundle": "tsx --env-file=.env.local scripts/generate-offline-bundle.ts",
+    "build-bundle": "tsx --env-file=.env.local scripts/build-course-bundle.ts",
+    "preview": "opennextjs-cloudflare build && wrangler dev",
+    "cf:deploy": "opennextjs-cloudflare build && wrangler deploy"
   },
   "dependencies": {
     "@google/genai": "^1.47.0",
@@ -27,27 +31,34 @@
     "@tailwindcss/typography": "^0.5.19",
     "adm-zip": "^0.5.16",
     "cheerio": "^1.2.0",
+    "framer-motion": "^12.38.0",
     "katex": "^0.16.33",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-katex": "^3.1.0",
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.18.0",
     "@tailwindcss/postcss": "^4",
     "@types/adm-zip": "^0.5.7",
     "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/react-katex": "^3.0.4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "tsx": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.78.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
   }
 }

@@ -15,8 +15,9 @@ export default function CourseFilters({ departments, topics }: CourseFiltersProp
   const activeTopic = searchParams.get("topic") ?? "";
   const hasVideos = searchParams.get("videos") === "1";
   const hasPsets = searchParams.get("psets") === "1";
+  const available = searchParams.get("available") !== "0";
 
-  const hasActiveFilters = activeDepartment || activeTopic || hasVideos || hasPsets;
+  const hasActiveFilters = activeDepartment || activeTopic || hasVideos || hasPsets || available;
 
   function updateParam(key: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -85,6 +86,16 @@ export default function CourseFilters({ departments, topics }: CourseFiltersProp
           className="accent-[#750014]"
         />
         Problem Sets
+      </label>
+
+      <label className="flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+        <input
+          type="checkbox"
+          checked={available}
+          onChange={(e) => updateParam("available", e.target.checked ? null : "0")}
+          className="accent-[#750014]"
+        />
+        Available during beta
       </label>
 
       {hasActiveFilters && (

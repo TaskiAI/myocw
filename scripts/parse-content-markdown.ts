@@ -14,19 +14,25 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 const STORAGE_BUCKET = "mit-ocw";
 
 const PROMPT =
-  "You are an expert LaTeX and Markdown converter. Convert the provided PDF into clean Markdown. " +
-  "Use LaTeX for all mathematical formulas (e.g., $...$ for inline and $$...$$ for block). " +
-  "Ensure all text and structures are preserved. " +
-  "When you encounter a figure, diagram, graph, or image in the PDF, output a placeholder tag [FIGURE N] " +
-  "(starting from 1, incrementing) on its own line where the image appears. " +
-  "Only tag actual embedded images, figures, and graphs — not tables or text-based diagrams. " +
-  "Output ONLY the markdown content.";
+  "You are an expert LaTeX and Markdown converter. This is a university-level teaching resource — " +
+  "preserve the pedagogical structure and clarity of the original material.\n\n" +
+  "Convert the provided PDF into clean, well-spaced Markdown:\n" +
+  "- Use generous newlines between sections, paragraphs, and logical blocks for readability. " +
+  "In math-heavy areas, add blank lines before and after each $$...$$ block so equations breathe.\n" +
+  "- Use $...$ for simple inline math only (single variables, short expressions). " +
+  "Any nontrivial formula, equation, or multi-term expression should be on its own line using $$...$$ block math.\n" +
+  "- For matrices, use \\begin{bmatrix}...\\end{bmatrix} (NOT \\begin{array} with \\left[ \\right], and NOT \\bmatrix{...}).\n" +
+  "- Preserve all text, structure, and numbering faithfully.\n" +
+  "- When you encounter a figure, diagram, graph, or image, output a placeholder [FIGURE N] on its own line. " +
+  "Only tag actual embedded images, figures, and graphs — not tables or text-based diagrams.\n" +
+  "- Output ONLY the markdown content.";
 
 const DELAY_MS = 2000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const PYTHON_PATH = path.resolve(import.meta.dirname, "../doc_ingestion_python/.venv/bin/python");
-const EXTRACT_SCRIPT = path.resolve(import.meta.dirname, "../doc_ingestion_python/extract_figures.py");
+const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
+const PYTHON_PATH = path.resolve(SCRIPT_DIR, "../doc_ingestion_python/.venv/bin/python");
+const EXTRACT_SCRIPT = path.resolve(SCRIPT_DIR, "../doc_ingestion_python/extract_figures.py");
 
 // --- Types ---
 
@@ -123,32 +129,73 @@ function replaceFigureTags(markdown: string, figureUrls: string[]): string {
 // --- Main ---
 
 async function main() {
-  const slug = process.argv[2];
-  if (!slug) {
-    console.error("Usage: parse-content-markdown <course-slug>");
+  const args = process.argv.slice(2);
+  const courseArg = args.find((a) => !a.startsWith("--"));
+  const sessionArg = args.find((a) => a.startsWith("--session=") || a === "--session");
+  const sessionNum = sessionArg
+    ? parseInt(sessionArg.includes("=") ? sessionArg.split("=")[1] : args[args.indexOf(sessionArg) + 1], 10)
+    : null;
+
+  if (!courseArg) {
+    console.error("Usage: parse-content-markdown <course-slug-or-id> [--session=N]");
     process.exit(1);
   }
 
-  const { data: course, error: courseError } = await supabase
-    .from("courses")
-    .select("id, title")
-    .eq("url", `https://ocw.mit.edu/courses/${slug}/`)
-    .single();
+  const isNumericId = /^\d+$/.test(courseArg);
+  const courseQuery = supabase.from("courses").select("id, title, url");
+  const { data: course, error: courseError } = await (
+    isNumericId
+      ? courseQuery.eq("id", Number(courseArg))
+      : courseQuery.eq("url", `https://ocw.mit.edu/courses/${courseArg}/`)
+  ).single();
 
   if (courseError || !course) {
-    console.error(`Course not found for slug: ${slug}`);
+    console.error(`Course not found: ${courseArg}`);
     process.exit(1);
   }
+
+  // Derive slug from URL for figure storage paths
+  const slug = course.url?.replace(/.*\/courses\//, "").replace(/\/$/, "") ?? courseArg;
 
   console.log(`\n${course.title} (id=${course.id})\n`);
 
-  const { data: resources, error: resError } = await supabase
+  // If --session=N, find the section_id matching that session number
+  let sectionId: number | null = null;
+  if (sessionNum !== null) {
+    const { data: sections } = await supabase
+      .from("course_sections")
+      .select("id, title, ordering")
+      .eq("course_id", course.id)
+      .eq("section_type", "lecture")
+      .order("ordering");
+
+    if (!sections?.length) {
+      console.error("No lecture sections found for this course.");
+      process.exit(1);
+    }
+
+    const section = sections[sessionNum - 1];
+    if (!section) {
+      console.error(`Session ${sessionNum} not found (only ${sections.length} sessions).`);
+      process.exit(1);
+    }
+    sectionId = section.id;
+    console.log(`Session ${sessionNum}: ${section.title} (section_id=${sectionId})\n`);
+  }
+
+  let resourceQuery = supabase
     .from("resources")
     .select("id, title, resource_type, pdf_path")
     .eq("course_id", course.id)
     .not("pdf_path", "is", null)
     .in("resource_type", ["solution", "lecture_notes"])
     .order("id");
+
+  if (sectionId !== null) {
+    resourceQuery = resourceQuery.eq("section_id", sectionId);
+  }
+
+  const { data: resources, error: resError } = await resourceQuery;
 
   if (resError || !resources?.length) {
     console.log("No matching resources found.");

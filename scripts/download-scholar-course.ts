@@ -146,14 +146,41 @@ function parsePageContent(pagePath: string): { text: string; youtubeIds: string[
   if (!content.length) content = $("article").first();
   if (!content.length) content = $("body");
 
-  // Extract text blocks (paragraphs, headings, list items)
+  // Extract text blocks as markdown (preserving headings, bold, lists)
   const blocks: string[] = [];
-  content.find("h1, h2, h3, h4, p, li, blockquote").each((_, el) => {
+  content.find("h1, h2, h3, h4, h5, h6, p, li, blockquote, table").each((_, el) => {
     // Skip if inside a nested nav
     if ($(el).closest("nav, [role=navigation]").length > 0) return;
+    const tag = (el as any).tagName?.toLowerCase();
     const text = normalizeWhitespace($(el).text());
-    if (text.length < 5) return;
-    blocks.push(text);
+    if (text.length < 3) return;
+
+    // Convert to markdown
+    if (tag === "h1") blocks.push(`# ${text}`);
+    else if (tag === "h2") blocks.push(`## ${text}`);
+    else if (tag === "h3") blocks.push(`### ${text}`);
+    else if (tag === "h4" || tag === "h5" || tag === "h6") blocks.push(`#### ${text}`);
+    else if (tag === "li") blocks.push(`- ${text}`);
+    else if (tag === "blockquote") blocks.push(`> ${text}`);
+    else {
+      // For paragraphs, preserve inline bold/strong
+      let md = "";
+      $(el).contents().each((_, child) => {
+        if (child.type === "text") {
+          md += normalizeWhitespace($(child).text());
+        } else if (child.type === "tag") {
+          const childTag = (child as any).tagName?.toLowerCase();
+          const childText = normalizeWhitespace($(child).text());
+          if (!childText) return;
+          if (childTag === "strong" || childTag === "b") md += `**${childText}**`;
+          else if (childTag === "em" || childTag === "i") md += `*${childText}*`;
+          else if (childTag === "a") md += childText;
+          else md += childText;
+        }
+      });
+      const trimmed = md.trim();
+      if (trimmed.length >= 3) blocks.push(trimmed);
+    }
   });
 
   // Deduplicate consecutive identical blocks

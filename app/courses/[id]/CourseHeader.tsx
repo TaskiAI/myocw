@@ -27,6 +27,7 @@ export default function CourseHeader({
   course,
   showContinueButton,
   onContinueCourse,
+  problemStats,
   lectureCount,
 }: Props) {
   const department = course.departments?.[0]?.name ?? null;
@@ -35,7 +36,7 @@ export default function CourseHeader({
   const levels = course.runs
     ?.flatMap((r) => r.level?.map((l) => l.name) ?? [])
     .filter((v, i, a) => a.indexOf(v) === i);
-  const instructors = run?.instructors?.map((i) => i.full_name) ?? [];
+  const instructors = run?.instructors ?? [];
   const displayCourseNumber = formatCourseReadableId(course.readable_id);
 
   return (
@@ -100,56 +101,22 @@ export default function CourseHeader({
                   View on MIT OCW
                 </a>
               )}
+              <a
+                href={`/api/courses/${course.id}/download`}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1a56db] px-8 py-4 font-bold text-white transition-colors hover:bg-[#1648c7] dark:bg-[#1a56db] dark:hover:bg-[#1648c7]"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Download Course
+              </a>
             </div>
 
-            {/* Metadata strip */}
-            <div className="grid grid-cols-3 gap-8 border-t border-[#e0bfbf]/20 pt-8">
-              {levels.length > 0 && (
-                <div>
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                    Level
-                  </span>
-                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
-                    {levels.join(", ")}
-                  </span>
-                </div>
-              )}
-              {semester && (
-                <div>
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                    Semester
-                  </span>
-                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
-                    {semester}
-                  </span>
-                </div>
-              )}
-              {typeof lectureCount === "number" && lectureCount > 0 && (
-                <div>
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                    Lectures
-                  </span>
-                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
-                    {lectureCount}
-                  </span>
-                </div>
-              )}
-              {instructors.length > 0 && (
-                <div>
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                    Instructors
-                  </span>
-                  <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
-                    {instructors.length}
-                  </span>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Right column — course image */}
-          {course.image_url && (
-            <div className="w-full max-w-sm flex-shrink-0">
+          {/* Right column — course image + instructors + progress */}
+          <div className="w-full max-w-sm flex-shrink-0 space-y-8">
+            {course.image_url && (
               <div className="group relative aspect-square w-full overflow-hidden rounded-2xl shadow-2xl">
                 <Image
                   src={course.image_url}
@@ -168,10 +135,116 @@ export default function CourseHeader({
                   </div>
                 )}
               </div>
+            )}
+
+            {instructors.length > 0 && (
+              <div>
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  Instructors
+                </h3>
+                <div className="space-y-4">
+                  {instructors.map((instructor) => (
+                    <div key={instructor.id} className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3f4f5] ring-1 ring-[#810020] dark:bg-zinc-800">
+                        <span className="text-sm font-bold text-[#810020]">
+                          {instructor.first_name?.[0]}{instructor.last_name?.[0]}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold text-[#191c1d] dark:text-zinc-100">
+                          {instructor.full_name}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {problemStats && problemStats.total > 0 && (
+              <div>
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  Your Progress
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <svg className="h-5 w-5 text-[#810020]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
+                    <div>
+                      <span className="block text-sm font-semibold text-[#191c1d] dark:text-zinc-100">
+                        {problemStats.attempted} / {problemStats.total} problems
+                      </span>
+                      <span className="text-xs text-[#594141] dark:text-zinc-400">
+                        {Math.round((problemStats.attempted / problemStats.total) * 100)}% completion
+                      </span>
+                    </div>
+                  </div>
+                  {problemStats.attempted > 0 && (
+                    <div className="flex items-center gap-3">
+                      <svg className="h-5 w-5 text-[#00463e]" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                      </svg>
+                      <div>
+                        <span className="block text-sm font-semibold text-[#191c1d] dark:text-zinc-100">
+                          {problemStats.correct} correct
+                        </span>
+                        <span className="text-xs text-[#594141] dark:text-zinc-400">
+                          {Math.round((problemStats.correct / problemStats.attempted) * 100)}% accuracy
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="h-1 w-full rounded-full bg-[#d6e0f4]">
+                    <div
+                      className="h-1 rounded-full bg-gradient-to-br from-[#810020] to-[#a31f34] transition-all"
+                      style={{
+                        width: `${Math.round((problemStats.attempted / problemStats.total) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Metadata strip */}
+      <div className="mt-8 border-t border-[#e0bfbf]/20 pt-8">
+        <div className="grid grid-cols-3 gap-8">
+          {levels.length > 0 && (
+            <div>
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                Level
+              </span>
+              <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                {levels.join(", ")}
+              </span>
+            </div>
+          )}
+          {semester && (
+            <div>
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                Semester
+              </span>
+              <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                {semester}
+              </span>
+            </div>
+          )}
+          {typeof lectureCount === "number" && lectureCount > 0 && (
+            <div>
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                Lectures
+              </span>
+              <span className="text-lg font-semibold text-[#191c1d] dark:text-zinc-100">
+                {lectureCount}
+              </span>
             </div>
           )}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { downloadCourse } from "./download-course.js";
-import { parseProblems } from "./parse-problems.js";
 import { CURRICULA_TRACKS } from "../lib/data/curricula.js";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -10,7 +9,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 // Parse CLI flags
 const args = process.argv.slice(2);
 const skipDownload = args.includes("--skip-download");
-const skipParse = args.includes("--skip-parse");
 const limitIdx = args.indexOf("--limit");
 const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : Infinity;
 
@@ -26,7 +24,7 @@ function extractSlug(url: string): string {
 async function main() {
   console.log("=== Batch Process ===");
   console.log(`Curricula scope: ${curriculaUrlPaths.size} unique courses across ${CURRICULA_TRACKS.length} tracks`);
-  console.log(`Options: skip-download=${skipDownload}, skip-parse=${skipParse}, limit=${limit === Infinity ? "none" : limit}`);
+  console.log(`Options: skip-download=${skipDownload}, limit=${limit === Infinity ? "none" : limit}`);
 
   // Query directly for curricula courses by URL pattern
   const urlFilters = [...curriculaUrlPaths].map((p) => `url.ilike.%${p}%`).join(",");
@@ -77,57 +75,7 @@ async function main() {
     }
   }
 
-  // ── Parse phase ──
-  if (!skipParse) {
-    // Re-fetch to pick up content_downloaded state updated during the download phase
-    const { data: freshAll, error: freshError } = await supabase
-      .from("courses")
-      .select("id, title, url, content_downloaded, problems_parsed, has_problem_sets")
-      .eq("content_downloaded", true)
-      .eq("has_problem_sets", true)
-      .or("problems_parsed.is.null,problems_parsed.eq.false")
-      .or(urlFilters);
-
-    if (freshError) {
-      console.error("Failed to fetch courses for parsing:", freshError.message);
-      process.exit(1);
-    }
-
-    const toParse = freshAll ?? [];
-    const parseCount = Math.min(toParse.length, limit - processed);
-    console.log(`Parse phase: ${toParse.length} courses need parsing (processing ${parseCount})\n`);
-
-    for (let i = 0; i < parseCount; i++) {
-      if (processed >= limit) break;
-      const course = toParse[i];
-      const slug = extractSlug(course.url);
-      console.log(`[${i + 1}/${parseCount}] Parsing: ${course.title}`);
-
-      try {
-        await parseProblems(slug);
-        await supabase
-          .from("courses")
-          .update({
-            problems_parsed: true,
-            problems_parsed_at: new Date().toISOString(),
-            parse_error: null,
-          })
-          .eq("id", course.id);
-        console.log(`  Done\n`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`  ERROR: ${message}\n`);
-        await supabase
-          .from("courses")
-          .update({ parse_error: message })
-          .eq("id", course.id);
-      }
-
-      processed++;
-    }
-  }
-
-  console.log(`\n=== Batch complete. Processed ${processed} courses. ===`);
+  console.log(`\n=== Batch complete. Downloaded ${processed} courses. ===`);
 }
 
 main().catch((err) => {

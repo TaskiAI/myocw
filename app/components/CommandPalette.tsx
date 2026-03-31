@@ -16,7 +16,7 @@ interface SearchResult {
 const QUICK_LINKS: SearchResult[] = [
   { id: "page-courses", type: "page", title: "All Courses", href: "/courses" },
   { id: "page-my-courses", type: "page", title: "My Courses", href: "/my-courses" },
-  { id: "page-curricula", type: "page", title: "Curricula", href: "/curricula" },
+  { id: "page-curricula", type: "page", title: "Pathways", href: "/curricula" },
   { id: "page-account", type: "page", title: "Account", href: "/account" },
 ];
 
@@ -115,7 +115,7 @@ export default function CommandPalette() {
         // ignore search errors
       }
 
-      // Curricula (client-side filter)
+      // Learning Pathways (client-side filter)
       for (const track of CURRICULA_TRACKS) {
         if (
           track.name.toLowerCase().includes(q) ||
@@ -271,7 +271,7 @@ export default function CommandPalette() {
           ) : (
             <>
               {renderSection("Courses", courseResults)}
-              {renderSection("Curricula", curriculumResults)}
+              {renderSection("Pathways", curriculumResults)}
               {renderSection("Pages", pageResults)}
             </>
           )}

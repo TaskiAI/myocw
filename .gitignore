@@ -43,3 +43,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .gstack/
+
+# cloudflare
+.open-next/
+.wrangler/
+
+# ffmpeg artifacts
+ffmpeg2pass*

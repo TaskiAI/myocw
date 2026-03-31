@@ -20,7 +20,7 @@ export default function CourseCard({
   return (
     <Link
       href={`/courses/${course.id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900"
+      className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-[shadow,transform] duration-200 hover:shadow-md hover:scale-[1.02] dark:border-zinc-700 dark:bg-zinc-900"
     >
       <div className="relative aspect-[16/9] w-full bg-[#750014]">
         {course.image_url ? (

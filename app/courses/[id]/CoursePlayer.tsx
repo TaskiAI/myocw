@@ -743,6 +743,32 @@ export default function CoursePlayer({
           );
         })
       )}
+
+      {visibleSections.length > 1 && (
+        <div className="mx-3 mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-700">
+          <button
+            onClick={() => goTo(activeIndex - 1)}
+            disabled={activeIndex === 0}
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {activeIndex + 1} / {visibleSections.length}
+          </span>
+          <button
+            onClick={() => goTo(activeIndex + 1)}
+            disabled={activeIndex === visibleSections.length - 1}
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+        </div>
+      )}
     </nav>
   );
 

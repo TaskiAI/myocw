@@ -4,6 +4,8 @@ import CourseCard from "@/app/components/CourseCard";
 import CourseSearch from "@/app/components/CourseSearch";
 import CourseFilters from "@/app/components/CourseFilters";
 import Pagination from "@/app/components/Pagination";
+import AnimatedCard from "@/app/components/AnimatedCard";
+import FadeIn from "@/app/components/FadeIn";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -17,20 +19,23 @@ export default async function CoursesPage({ searchParams }: PageProps) {
   const topic = typeof params.topic === "string" ? params.topic : undefined;
   const videos = params.videos === "1";
   const psets = params.psets === "1";
+  const available = params.available !== "0";
   const page = typeof params.page === "string" ? parseInt(params.page, 10) || 1 : 1;
 
   const [{ courses, totalPages, currentPage }, filterOptions] = await Promise.all([
-    getCourses({ q, department, topic, videos, psets, page }),
+    getCourses({ q, department, topic, videos, psets, available, page }),
     getFilterOptions(),
   ]);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="mb-6 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-        Courses
-      </h1>
+      <FadeIn>
+        <h1 className="mb-6 text-4xl font-black tracking-tighter text-[#191c1d] dark:text-zinc-100 md:text-5xl">
+          Courses
+        </h1>
+      </FadeIn>
 
-      <div className="mb-6 flex flex-col gap-4">
+      <FadeIn delay={0.05} className="mb-6 flex flex-col gap-4">
         <Suspense>
           <CourseSearch />
         </Suspense>
@@ -40,17 +45,19 @@ export default async function CoursesPage({ searchParams }: PageProps) {
             topics={filterOptions.topics}
           />
         </Suspense>
-      </div>
+      </FadeIn>
 
       {courses.length === 0 ? (
-        <div className="py-20 text-center">
+        <FadeIn delay={0.1} className="py-20 text-center">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">No courses found matching your filters.</p>
-        </div>
+        </FadeIn>
       ) : (
         <>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+            {courses.map((course, i) => (
+              <AnimatedCard key={course.id} index={i}>
+                <CourseCard course={course} />
+              </AnimatedCard>
             ))}
           </div>
 

@@ -9,6 +9,7 @@ export interface CourseFilters {
   topic?: string;
   videos?: boolean;
   psets?: boolean;
+  available?: boolean;
   page?: number;
 }
 
@@ -24,9 +25,13 @@ export async function getCourses(filters: CourseFilters): Promise<CourseResult> 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  // Temporary: only surface downloaded course(s) to reduce clutter
+  const AVAILABLE_COURSE_IDS = [4794];
+
   let query = supabase
     .from("courses")
-    .select("*", { count: "exact" });
+    .select("*", { count: "exact" })
+    .in("id", AVAILABLE_COURSE_IDS);
 
   if (filters.q) {
     query = query.ilike("title", `%${filters.q}%`);
@@ -46,6 +51,10 @@ export async function getCourses(filters: CourseFilters): Promise<CourseResult> 
 
   if (filters.psets) {
     query = query.eq("has_problem_sets", true);
+  }
+
+  if (filters.available) {
+    query = query.eq("content_downloaded", true);
   }
 
   query = query
@@ -74,9 +83,11 @@ export interface FilterOptions {
 export async function getFilterOptions(): Promise<FilterOptions> {
   const supabase = await createClient();
 
+  // Temporary: match the AVAILABLE_COURSE_IDS filter above
   const { data, error } = await supabase
     .from("courses")
-    .select("departments, topics");
+    .select("departments, topics")
+    .in("id", [4794]);
 
   if (error || !data) {
     console.error("Error fetching filter options:", error);
