@@ -1131,20 +1131,7 @@ export default function ScholarSessionPlayer({
                 </div>
               )}
 
-              {activeResource && (activeResource.youtube_id || activeResource.archive_url) ? (
-                <div className="flex gap-6">
-                  {renderActiveResource()}
-                  <div className="flex flex-1 flex-col pt-1">
-                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      Interactive Questions
-                    </h3>
-                    <div className="mt-3 border-t border-zinc-200 dark:border-zinc-700" />
-                    <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">Coming soon</p>
-                  </div>
-                </div>
-              ) : (
-                renderActiveResource()
-              )}
+              {renderActiveResource()}
 
               {/* Prev / Next navigation */}
               {navigableResources.length > 1 || prevSession || nextSession ? (
