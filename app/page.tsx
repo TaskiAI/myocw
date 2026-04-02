@@ -22,8 +22,10 @@ function LandingPage() {
           className="w-full h-auto"
         />
       </div>
-      <div className="mx-auto max-w-6xl px-6 py-12">
-        <LandingHero />
+      <div className="border-t border-zinc-100 dark:border-zinc-800">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <LandingHero />
+        </div>
       </div>
     </main>
   );
