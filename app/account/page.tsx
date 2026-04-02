@@ -27,24 +27,26 @@ export default async function AccountPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#750014]">
-          Tools
-        </p>
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Manual PDF to problem set editor
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-          Build private pset drafts directly in the browser, edit each problem by
-          hand, and keep the solution alongside the prompt. This editor is
-          currently enabled only for the dev account at{" "}
-          <span className="font-medium text-zinc-900 dark:text-zinc-100">{DEV_EDITOR_EMAIL}</span>.
-        </p>
-      </section>
+      {canEdit && (
+        <>
+          <section className="mt-8 rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#750014]">
+              Tools
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              Manual PDF to problem set editor
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              Build private pset drafts directly in the browser, edit each problem by
+              hand, and keep the solution alongside the prompt.
+            </p>
+          </section>
 
-      <div className="mt-8">
-        <ManualPsetEditor canEdit={canEdit} initialDrafts={drafts} />
-      </div>
+          <div className="mt-8">
+            <ManualPsetEditor canEdit={canEdit} initialDrafts={drafts} />
+          </div>
+        </>
+      )}
     </main>
   );
 }
