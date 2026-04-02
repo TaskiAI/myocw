@@ -72,8 +72,8 @@ export default function Navbar() {
 
   const navLinkClass = (path: string) =>
     isActive(path)
-      ? "text-[#810020] dark:text-[#ffb3b5] font-semibold border-b-2 border-[#810020] dark:border-[#ffb3b5] pb-1"
-      : "text-zinc-600 dark:text-zinc-400 hover:text-[#810020] dark:hover:text-[#ffb3b5] transition-colors";
+      ? "inline-flex items-center py-2.5 text-[#810020] dark:text-[#ffb3b5] font-semibold border-b-2 border-[#810020] dark:border-[#ffb3b5]"
+      : "inline-flex items-center py-2.5 text-zinc-600 dark:text-zinc-400 hover:text-[#810020] dark:hover:text-[#ffb3b5] transition-colors";
 
   return (
     <motion.header
@@ -118,7 +118,7 @@ export default function Navbar() {
           {user && language && (
             <button
               onClick={() => window.dispatchEvent(new Event("open-language-popup"))}
-              className="hidden items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 md:flex"
+              className="hidden items-center gap-1 py-2.5 text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 md:flex"
             >
               {language}
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
@@ -152,7 +152,7 @@ export default function Navbar() {
           <button
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
-            className="rounded-full p-2 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800"
+            className="rounded-full p-3 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800"
           >
             {isDark ? (
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -168,7 +168,7 @@ export default function Navbar() {
           {user ? (
             <button
               onClick={handleSignOut}
-              className="rounded-full p-2 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800"
+              className="rounded-full p-3 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800"
               aria-label="Sign out"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
