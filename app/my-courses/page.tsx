@@ -20,7 +20,7 @@ export default async function MyCoursesPage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
       <FadeIn>
-        <h1 className="text-4xl font-black tracking-tighter text-[#191c1d] dark:text-zinc-100 md:text-5xl">My Courses</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">My Courses</h1>
       </FadeIn>
 
       {!hasEnrolled && !hasRecent ? (
@@ -48,13 +48,12 @@ export default async function MyCoursesPage() {
           )}
 
           <FadeIn delay={hasEnrolled ? 0.2 : 0.1} className="mt-10">
-            <h2 className="text-lg font-semibold text-zinc-900">Recent Courses</h2>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Recent Courses</h2>
 
             {!hasRecent ? (
               <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  No recent course activity yet.
-                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No recent course activity yet.</p>
+                <a href="/courses" className="mt-4 inline-block rounded-lg bg-[#750014] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#5a0010]">Browse Courses</a>
               </div>
             ) : (
               <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
