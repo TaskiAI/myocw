@@ -56,7 +56,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((course, i) => (
               <AnimatedCard key={course.id} index={i}>
-                <CourseCard course={course} />
+                <CourseCard course={course} priority={i < 3} />
               </AnimatedCard>
             ))}
           </div>

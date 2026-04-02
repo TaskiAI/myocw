@@ -6,9 +6,11 @@ import type { CourseProgress } from "@/lib/queries/my-courses";
 export default function CourseCard({
   course,
   progress,
+  priority,
 }: {
   course: Course;
   progress?: CourseProgress;
+  priority?: boolean;
 }) {
   const department = course.departments?.[0]?.name ?? null;
 
@@ -28,6 +30,7 @@ export default function CourseCard({
             src={course.image_url}
             alt={course.image_alt ?? course.title}
             fill
+            priority={priority}
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 384px"
           />
