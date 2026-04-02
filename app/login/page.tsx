@@ -33,7 +33,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-57px)] max-w-sm flex-col justify-center px-6">
+    <main className="mx-auto flex max-w-sm flex-col px-6 pt-20 pb-16">
       <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       <h1 className="mb-1 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         {isSignUp ? "Create an account" : "Sign in"}
