@@ -11,7 +11,7 @@ interface Props {
 
 export default function MarkdownContent({ children }: Props) {
   return (
-    <div className="prose prose-slate max-w-none prose-headings:font-light prose-headings:tracking-tight prose-p:leading-relaxed prose-pre:bg-[#F9F9F9] prose-pre:border prose-pre:border-[#E5E5E5] prose-pre:text-[#1A1A1A]">
+    <div className="prose prose-slate max-w-none dark:prose-invert prose-headings:font-light prose-headings:tracking-tight prose-p:leading-relaxed prose-pre:bg-[#F9F9F9] prose-pre:border prose-pre:border-[#E5E5E5] prose-pre:text-[#1A1A1A] dark:prose-pre:bg-zinc-800 dark:prose-pre:border-zinc-700 dark:prose-pre:text-zinc-100">
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
         rehypePlugins={[rehypeKatex]}

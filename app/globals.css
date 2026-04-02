@@ -10,14 +10,14 @@
 
 html.dark {
   --background: #09090b;
-  --foreground: #fafafa;
+  --foreground: #ffffff;
   background: #09090b;
-  color: #fafafa;
+  color: #ffffff;
 }
 
 html.dark body {
   background: #09090b;
-  color: #fafafa;
+  color: #ffffff;
 }
 
 @theme inline {
@@ -93,6 +93,34 @@ body {
 
 .dark .katex-display {
   background: #18181b;
+}
+
+.dark .prose {
+  color: #ffffff;
+}
+
+.dark .prose p,
+.dark .prose li,
+.dark .prose td,
+.dark .prose th {
+  color: #ffffff;
+}
+
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.dark .prose h5,
+.dark .prose h6 {
+  color: #ffffff;
+}
+
+.dark .prose a {
+  color: #ffffff;
+}
+
+.dark .prose strong {
+  color: #ffffff;
 }
 
 .hero-gradient {

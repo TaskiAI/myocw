@@ -412,12 +412,22 @@ function renderResource(
 </div>`);
   }
 
-  if (resource.content_text) {
+  // Match live site (ScholarSessionPlayer): only problem_set resources with
+  // interactive problems render from the problems table. Everything else uses
+  // content_text. This filters out old model data (label "N", broken LaTeX).
+  const isProblemSet = resource.resource_type === "problem_set";
+  const hasInteractive = isProblemSet && problems.some((p) =>
+    /<(FillInBlank|MultipleChoice|FreeResponse)\s/.test(p.question_text)
+  );
+
+  if (resource.content_text && !isProblemSet) {
     parts.push(`<div class="content">${renderContent(resource.content_text)}</div>`);
   }
 
-  for (const p of problems) {
-    parts.push(renderProblem(p));
+  if (hasInteractive) {
+    for (const p of problems) {
+      parts.push(renderProblem(p));
+    }
   }
 
   parts.push(`</div>`);
@@ -433,6 +443,8 @@ export function renderSectionPage(
   prevSection: BundleSection | null,
   nextSection: BundleSection | null
 ): string {
+  _componentCounter = 0;
+
   // Direct resources on this section
   const directResources = resources
     .filter((r) => r.section_id === section.id)

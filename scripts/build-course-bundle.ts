@@ -116,9 +116,11 @@ function downloadAndCompressVideo(youtubeId: string, outputPath: string): Promis
 }
 
 async function main() {
-  const courseIdArg = process.argv[2];
+  const args = process.argv.slice(2);
+  const skipVideos = args.includes("--skip-videos");
+  const courseIdArg = args.find((a) => !a.startsWith("--"));
   if (!courseIdArg) {
-    console.error("Usage: pnpm build-bundle <course_id>");
+    console.error("Usage: pnpm build-bundle <course_id> [--skip-videos]");
     process.exit(1);
   }
 
@@ -242,7 +244,9 @@ async function main() {
   console.log(`  ${pagesWritten} section pages written`);
 
   // 3. Download + compress videos
-  if (videoResources.length > 0) {
+  if (skipVideos) {
+    console.log(`\nSkipping video downloads (--skip-videos)`);
+  } else if (videoResources.length > 0) {
     console.log(`\nDownloading and compressing ${videoResources.length} videos...`);
 
     for (let i = 0; i < videoResources.length; i++) {

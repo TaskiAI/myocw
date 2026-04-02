@@ -9,10 +9,10 @@
       "youtube_url": "https://youtube.com/watch?v=7UJ4CFRGd-U"
     },
     {
-      "title": "Column Space and Nullspace",
-      "youtube_id": "8o5Cmfpeo6g",
-      "filename": "8o5Cmfpeo6g.mp4",
-      "youtube_url": "https://youtube.com/watch?v=8o5Cmfpeo6g"
+      "title": "Lecture 27: Positive Definite Matrices and Minima",
+      "youtube_id": "vF7eyJ2g3kU",
+      "filename": "vF7eyJ2g3kU.mp4",
+      "youtube_url": "https://youtube.com/watch?v=vF7eyJ2g3kU"
     },
     {
       "title": "Lecture 22: Diagonalization and Powers of A",
@@ -27,12 +27,6 @@
       "youtube_url": "https://youtube.com/watch?v=QuZL5IKpO_U"
     },
     {
-      "title": "Lecture 24: Markov Matrices; Fourier Series",
-      "youtube_id": "lGGDIGizcQ0",
-      "filename": "lGGDIGizcQ0.mp4",
-      "youtube_url": "https://youtube.com/watch?v=lGGDIGizcQ0"
-    },
-    {
       "title": "Lecture 15: Projections onto Subspaces",
       "youtube_id": "Y_Ac6KiQ1t0",
       "filename": "Y_Ac6KiQ1t0.mp4",
@@ -43,6 +37,12 @@
       "youtube_id": "srxexLishgY",
       "filename": "srxexLishgY.mp4",
       "youtube_url": "https://youtube.com/watch?v=srxexLishgY"
+    },
+    {
+      "title": "Lecture 24: Markov Matrices; Fourier Series",
+      "youtube_id": "lGGDIGizcQ0",
+      "filename": "lGGDIGizcQ0.mp4",
+      "youtube_url": "https://youtube.com/watch?v=lGGDIGizcQ0"
     },
     {
       "title": "Lecture 21: Eigenvalues and Eigenvectors",
@@ -111,12 +111,6 @@
       "youtube_url": "https://youtube.com/watch?v=M0Sa8fLOajA"
     },
     {
-      "title": "Lecture 23: Differential Equations and exp(At)",
-      "youtube_id": "IZqwi0wJovM",
-      "filename": "IZqwi0wJovM.mp4",
-      "youtube_url": "https://youtube.com/watch?v=IZqwi0wJovM"
-    },
-    {
       "title": "An Overview of Linear Algebra",
       "youtube_id": "0oBJN8F616U",
       "filename": "0oBJN8F616U.mp4",
@@ -127,6 +121,12 @@
       "youtube_id": "MsIvs_6vC38",
       "filename": "MsIvs_6vC38.mp4",
       "youtube_url": "https://youtube.com/watch?v=MsIvs_6vC38"
+    },
+    {
+      "title": "Lecture 23: Differential Equations and exp(At)",
+      "youtube_id": "IZqwi0wJovM",
+      "filename": "IZqwi0wJovM.mp4",
+      "youtube_url": "https://youtube.com/watch?v=IZqwi0wJovM"
     },
     {
       "title": "Solving Ax = 0: Pivot Variables, Special Solutions",
@@ -165,12 +165,6 @@
       "youtube_url": "https://youtube.com/watch?v=QNpj-gOXW9M"
     },
     {
-      "title": "Lecture 17: Orthogonal Matrices and Gram-Schmidt",
-      "youtube_id": "0MtwqhIwdrI",
-      "filename": "0MtwqhIwdrI.mp4",
-      "youtube_url": "https://youtube.com/watch?v=0MtwqhIwdrI"
-    },
-    {
       "title": "Solving Ax = b: Row Reduced Form R",
       "youtube_id": "9Q1q7s1jTzU",
       "filename": "9Q1q7s1jTzU.mp4",
@@ -195,22 +189,22 @@
       "youtube_url": "https://youtube.com/watch?v=FX4C-JpTFgY"
     },
     {
+      "title": "Lecture 17: Orthogonal Matrices and Gram-Schmidt",
+      "youtube_id": "0MtwqhIwdrI",
+      "filename": "0MtwqhIwdrI.mp4",
+      "youtube_url": "https://youtube.com/watch?v=0MtwqhIwdrI"
+    },
+    {
+      "title": "Column Space and Nullspace",
+      "youtube_id": "8o5Cmfpeo6g",
+      "filename": "8o5Cmfpeo6g.mp4",
+      "youtube_url": "https://youtube.com/watch?v=8o5Cmfpeo6g"
+    },
+    {
       "title": "Independence, Basis and Dimension",
       "youtube_id": "yjBerM5jWsc",
       "filename": "yjBerM5jWsc.mp4",
       "youtube_url": "https://youtube.com/watch?v=yjBerM5jWsc"
-    },
-    {
-      "title": "Orthogonal Vectors and Subspaces",
-      "youtube_id": "YzZUIYRCE38",
-      "filename": "YzZUIYRCE38.mp4",
-      "youtube_url": "https://youtube.com/watch?v=YzZUIYRCE38"
-    },
-    {
-      "title": "Lecture 27: Positive Definite Matrices and Minima",
-      "youtube_id": "vF7eyJ2g3kU",
-      "filename": "vF7eyJ2g3kU.mp4",
-      "youtube_url": "https://youtube.com/watch?v=vF7eyJ2g3kU"
     },
     {
       "title": "Graphs, Networks, Incidence Matrices",
@@ -231,10 +225,16 @@
       "youtube_url": "https://youtube.com/watch?v=23LLB9mNJvc"
     },
     {
-      "title": "Basis and Dimension",
-      "youtube_id": "MMWqGD4Urso",
-      "filename": "MMWqGD4Urso.mp4",
-      "youtube_url": "https://youtube.com/watch?v=MMWqGD4Urso"
+      "title": "Orthogonal Vectors and Subspaces",
+      "youtube_id": "YzZUIYRCE38",
+      "filename": "YzZUIYRCE38.mp4",
+      "youtube_url": "https://youtube.com/watch?v=YzZUIYRCE38"
+    },
+    {
+      "title": "Problem Solving: Properties of Determinants",
+      "youtube_id": "55AoWKZZtww",
+      "filename": "55AoWKZZtww.mp4",
+      "youtube_url": "https://youtube.com/watch?v=55AoWKZZtww"
     },
     {
       "title": "An Overview of Key Ideas",
@@ -303,6 +303,12 @@
       "youtube_url": "https://youtube.com/watch?v=S8DQZjE4V8U"
     },
     {
+      "title": "Basis and Dimension",
+      "youtube_id": "MMWqGD4Urso",
+      "filename": "MMWqGD4Urso.mp4",
+      "youtube_url": "https://youtube.com/watch?v=MMWqGD4Urso"
+    },
+    {
       "title": "Graphs and Networks",
       "youtube_id": "h0m2tsmSPTI",
       "filename": "h0m2tsmSPTI.mp4",
@@ -343,12 +349,6 @@
       "youtube_id": "t-n4a18AW08",
       "filename": "t-n4a18AW08.mp4",
       "youtube_url": "https://youtube.com/watch?v=t-n4a18AW08"
-    },
-    {
-      "title": "Problem Solving: Properties of Determinants",
-      "youtube_id": "55AoWKZZtww",
-      "filename": "55AoWKZZtww.mp4",
-      "youtube_url": "https://youtube.com/watch?v=55AoWKZZtww"
     },
     {
       "title": "Problem Solving: Eigenvalues and Eigenvectors",
@@ -453,16 +453,16 @@
       "youtube_url": "https://youtube.com/watch?v=ZuWAwCEMeWE"
     },
     {
-      "title": "微分方程指数矩阵(At)",
-      "youtube_id": "fiSp3Ss-Yo8",
-      "filename": "fiSp3Ss-Yo8.mp4",
-      "youtube_url": "https://youtube.com/watch?v=fiSp3Ss-Yo8"
-    },
-    {
       "title": "三维空间的子空间",
       "youtube_id": "VyPIQ_8QqEk",
       "filename": "VyPIQ_8QqEk.mp4",
       "youtube_url": "https://youtube.com/watch?v=VyPIQ_8QqEk"
+    },
+    {
+      "title": "Recital (Mandarin)",
+      "youtube_id": "mgbjhzDndOY",
+      "filename": "mgbjhzDndOY.mp4",
+      "youtube_url": "https://youtube.com/watch?v=mgbjhzDndOY"
     },
     {
       "title": "第二次考试例题",
@@ -471,16 +471,16 @@
       "youtube_url": "https://youtube.com/watch?v=ThxvK9t7DNo"
     },
     {
+      "title": "微分方程指数矩阵(At)",
+      "youtube_id": "fiSp3Ss-Yo8",
+      "filename": "fiSp3Ss-Yo8.mp4",
+      "youtube_url": "https://youtube.com/watch?v=fiSp3Ss-Yo8"
+    },
+    {
       "title": "行列式",
       "youtube_id": "ZyYGJc9jNno",
       "filename": "ZyYGJc9jNno.mp4",
       "youtube_url": "https://youtube.com/watch?v=ZyYGJc9jNno"
-    },
-    {
-      "title": "Recital (Mandarin)",
-      "youtube_id": "mgbjhzDndOY",
-      "filename": "mgbjhzDndOY.mp4",
-      "youtube_url": "https://youtube.com/watch?v=mgbjhzDndOY"
     }
   ]
 }
