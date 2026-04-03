@@ -14,8 +14,8 @@ export default function LandingHero() {
         transition={{ duration: 0.45, delay: 0.15, ease }}
         className="text-lg text-zinc-500 dark:text-zinc-400"
       >
-        Watch lectures, work through problem sets, and track your progress — all from MIT OpenCourseWare.
-        Free forever.
+        Lectures, problem sets, and exams from MIT — compressed 96% smaller for offline use,
+        with automatic machine translation into any language. Interactive, trackable, and free forever.
       </motion.p>
       <motion.p
         initial={{ opacity: 0, y: 14 }}
@@ -23,7 +23,7 @@ export default function LandingHero() {
         transition={{ duration: 0.45, delay: 0.25, ease }}
         className="text-sm text-zinc-400 dark:text-zinc-500"
       >
-        Not affiliated with MIT. Content is sourced from MIT OpenCourseWare under CC BY-NC-SA 4.0.
+        Not affiliated with MIT. Content sourced from MIT OpenCourseWare under CC BY-NC-SA 4.0.
       </motion.p>
       <motion.div
         initial={{ opacity: 0, y: 14 }}

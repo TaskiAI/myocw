@@ -6,27 +6,17 @@ import CourseCard from "@/app/components/CourseCard";
 import CurriculumTrackCard from "@/app/components/CurriculumTrackCard";
 import AnimatedCard from "@/app/components/AnimatedCard";
 import FadeIn from "@/app/components/FadeIn";
-import LandingHero from "@/app/components/LandingHero";
+import LandingCTA from "@/app/components/LandingCTA";
+import HeroSection from "@/app/components/HeroSection";
+import FeatureTimeline from "@/app/components/FeatureTimeline";
 import Link from "next/link";
 
 function LandingPage() {
   return (
     <main>
-      <div className="relative w-full">
-        <Image
-          src="/myocw.png"
-          alt="MIT Great Dome"
-          width={1500}
-          height={1001}
-          priority
-          className="w-full h-auto"
-        />
-      </div>
-      <div className="border-t border-zinc-100 dark:border-zinc-800">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <LandingHero />
-        </div>
-      </div>
+      <HeroSection />
+      <FeatureTimeline />
+      <LandingCTA />
     </main>
   );
 }

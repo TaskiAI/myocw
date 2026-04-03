@@ -3,25 +3,9 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getUserLanguage, setUserLanguage } from "@/lib/queries/user-profile";
+import { LANGUAGE_NAMES } from "@/lib/languages";
 
-const LANGUAGES = [
-  "English",
-  "Spanish",
-  "French",
-  "German",
-  "Portuguese",
-  "Chinese",
-  "Japanese",
-  "Korean",
-  "Arabic",
-  "Hindi",
-  "Russian",
-  "Turkish",
-  "Italian",
-  "Dutch",
-  "Polish",
-  "Other",
-];
+const LANGUAGES = [...LANGUAGE_NAMES, "Other"];
 
 export default function LanguagePopup() {
   const [open, setOpen] = useState(false);

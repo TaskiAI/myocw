@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 
@@ -35,6 +37,38 @@ interface SplitSolution {
   label: string;
   solution_text: string | null;
   explanation_text: string | null;
+}
+
+// --- JSON repair for LaTeX ---
+
+function parseJsonWithLatex(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    let fixed = "";
+    let inString = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (ch === '"' && (i === 0 || raw[i - 1] !== "\\")) {
+        inString = !inString;
+        fixed += ch;
+      } else if (inString && ch === "\\") {
+        const next = raw[i + 1];
+        if (next && '"\\/bfnrt'.includes(next)) {
+          fixed += ch + next;
+          i++;
+        } else if (next === "u" && /^[0-9a-fA-F]{4}$/.test(raw.slice(i + 2, i + 6))) {
+          fixed += ch + raw.slice(i + 1, i + 6);
+          i += 5;
+        } else {
+          fixed += "\\\\";
+        }
+      } else {
+        fixed += ch;
+      }
+    }
+    return JSON.parse(fixed);
+  }
 }
 
 // --- Label normalization ---
@@ -94,7 +128,7 @@ async function splitSolutions(
   // Strip code fences if present
   const cleaned = text.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
 
-  const parsed = JSON.parse(cleaned);
+  const parsed = parseJsonWithLatex(cleaned);
   if (!Array.isArray(parsed)) throw new Error("Gemini response is not an array.");
   return parsed as SplitSolution[];
 }

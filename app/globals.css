@@ -3,6 +3,12 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-smooth: never;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

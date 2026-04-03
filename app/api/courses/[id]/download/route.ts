@@ -28,6 +28,7 @@ import {
   type BundleResource,
   type BundleProblem,
 } from "@/lib/offline-bundle";
+import { LANGUAGES, RTL_LANGUAGES } from "@/lib/languages";
 
 const KATEX_DIST = path.resolve("node_modules/katex/dist");
 
@@ -39,7 +40,7 @@ function buildSupabase() {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -97,6 +98,40 @@ export async function GET(
   const resources = (resourcesData ?? []) as BundleResource[];
   const allProblems = (problemsData ?? []) as BundleProblem[];
 
+  // Parse ?lang= param for translated downloads
+  const url = new URL(req.url);
+  const langParam = url.searchParams.get("lang");
+  const isTranslated = langParam && langParam !== "English" && langParam in LANGUAGES;
+  const langCode = isTranslated ? LANGUAGES[langParam] : "en";
+  const dir = isTranslated && RTL_LANGUAGES.has(langParam) ? "rtl" : "ltr";
+
+  // If a language is requested, fetch cached translations and substitute
+  if (isTranslated) {
+    const { data: translations } = await supabase
+      .from("content_translations")
+      .select("source_table, source_id, field_name, translated_text")
+      .eq("language", langParam)
+      .in("source_table", ["problems", "resources"]);
+
+    const txMap = new Map<string, string>();
+    for (const t of translations ?? []) {
+      txMap.set(`${t.source_table}:${t.source_id}:${t.field_name}`, t.translated_text);
+    }
+
+    // Substitute problem text
+    for (const p of allProblems) {
+      p.question_text = txMap.get(`problems:${p.id}:question_text`) ?? p.question_text;
+      p.solution_text = txMap.get(`problems:${p.id}:solution_text`) ?? p.solution_text;
+    }
+
+    // Substitute resource content_text
+    for (const r of resources) {
+      if (r.content_text) {
+        r.content_text = txMap.get(`resources:${r.id}:content_text`) ?? r.content_text;
+      }
+    }
+  }
+
   const problemsByResource = new Map<number, BundleProblem[]>();
   for (const p of allProblems) {
     if (!problemsByResource.has(p.resource_id)) problemsByResource.set(p.resource_id, []);
@@ -112,7 +147,7 @@ export async function GET(
   // index.html
   zip.addFile(
     `${base}/index.html`,
-    Buffer.from(renderIndexPage(course, sections), "utf-8")
+    Buffer.from(renderIndexPage(course, sections, langCode, dir), "utf-8")
   );
 
   // Generate pages for every section, prev/next scoped to siblings
@@ -134,7 +169,9 @@ export async function GET(
         resources,
         problemsByResource,
         sorted[idx - 1] ?? null,
-        sorted[idx + 1] ?? null
+        sorted[idx + 1] ?? null,
+        langCode,
+        dir
       );
       zip.addFile(
         `${base}/sections/${section.slug}.html`,
@@ -185,7 +222,7 @@ export async function GET(
   );
 
   const zipBuffer = zip.toBuffer();
-  const filename = `${base}.zip`;
+  const filename = isTranslated ? `${base}-${langCode}.zip` : `${base}.zip`;
 
   return new Response(zipBuffer as unknown as BodyInit, {
     headers: {

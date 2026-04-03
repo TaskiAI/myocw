@@ -65,15 +65,25 @@ function parsePropValue(
     return null;
   }
 
-  // Quoted string: answer="value"
-  if (ch === '"') {
-    // Find closing quote, handling the fact that LaTeX inside won't have escaped quotes
+  // Quoted string: answer="value" or answer='value'
+  if (ch === '"' || ch === "'") {
+    const closeQuote = ch;
     let end = startIndex + 1;
-    while (end < propsStr.length && propsStr[end] !== '"') {
+    while (end < propsStr.length && propsStr[end] !== closeQuote) {
       end++;
     }
     if (end >= propsStr.length) return null;
-    return { value: propsStr.slice(startIndex + 1, end), endIndex: end + 1 };
+    const inner = propsStr.slice(startIndex + 1, end);
+    // Try to parse as JSON array (e.g. options='["a","b"]')
+    try {
+      const parsed = JSON.parse(inner);
+      if (Array.isArray(parsed)) {
+        return { value: parsed as string[], endIndex: end + 1 };
+      }
+    } catch {
+      // Not JSON — treat as plain string
+    }
+    return { value: inner, endIndex: end + 1 };
   }
 
   return null;

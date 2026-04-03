@@ -6,6 +6,8 @@ import {
   getCourseProblems,
 } from "@/lib/queries/course-content";
 import { getDevEditorAccess } from "@/lib/queries/user-pset-drafts-server";
+import { getUserLanguageServer } from "@/lib/queries/user-profile-server";
+import { applyTranslations } from "@/lib/queries/translations";
 import CoursePageContent from "./CoursePageContent";
 
 interface PageProps {
@@ -21,13 +23,17 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
   const course = await getCourseById(courseId);
   if (!course) notFound();
 
-  const [sections, resources, problems, resolvedSearchParams, devEditorAccess] = await Promise.all([
+  const [sections, rawResources, rawProblems, resolvedSearchParams, devEditorAccess, userLanguage] = await Promise.all([
     getCourseSections(courseId),
     getCourseResources(courseId),
     getCourseProblems(courseId),
     searchParams,
     getDevEditorAccess(),
+    getUserLanguageServer(),
   ]);
+
+  // Apply cached translations if user has a non-English language set
+  const { problems, resources } = await applyTranslations(courseId, userLanguage, rawProblems, rawResources);
 
   const hasContent = course.content_downloaded && sections.length > 0;
 

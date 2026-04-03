@@ -9,6 +9,7 @@ import type { Resource } from "@/lib/types/course-content";
 import { markCourseInteracted } from "@/lib/queries/course-activity";
 import { getProblemAttempts } from "@/lib/queries/problem-progress";
 import { getVideoProgress } from "@/lib/queries/video-progress";
+import { getUserLanguage } from "@/lib/queries/user-profile";
 import CourseHeader from "./CourseHeader";
 import CoursePlayer from "./CoursePlayer";
 import ScholarSessionPlayer from "./ScholarSessionPlayer";
@@ -226,10 +227,16 @@ export default function CoursePageContent({
     attempted: number;
     correct: number;
   } | null>(null);
+  const [userLanguage, setUserLanguage] = useState<string | null>(null);
 
   useEffect(() => {
     void markCourseInteracted(course.id);
   }, [course.id]);
+
+  // Fetch user language for translated downloads
+  useEffect(() => {
+    getUserLanguage().then(setUserLanguage);
+  }, []);
 
   // Fetch video progress for overview checkmarks
   useEffect(() => {
@@ -378,7 +385,7 @@ export default function CoursePageContent({
 
     return (
       <main className="mx-auto max-w-screen-2xl px-6 py-10 md:px-12">
-        <CourseHeader course={course} />
+        <CourseHeader course={course} userLanguage={userLanguage} />
         <div className="mt-8 rounded-xl bg-[#f3f4f5] p-8 text-center dark:bg-zinc-900">
           {canEditContent ? (
             <>
@@ -461,6 +468,7 @@ export default function CoursePageContent({
         onContinueCourse={handleContinueCourse}
         problemStats={problemStats}
         lectureCount={isScholar ? sessionCount : lectureSections.length}
+        userLanguage={userLanguage}
       />
 
       <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] mt-16 w-screen bg-[#f3f4f5] py-16 dark:bg-zinc-900/50">

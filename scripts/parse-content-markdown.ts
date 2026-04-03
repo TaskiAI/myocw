@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { execFileSync } from "child_process";
@@ -10,7 +12,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-3-flash-preview";
 const STORAGE_BUCKET = "mit-ocw";
 
 const PROMPT =

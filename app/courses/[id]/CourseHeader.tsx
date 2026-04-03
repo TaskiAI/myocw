@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Course } from "@/lib/types/course";
+import DownloadButton from "./DownloadButton";
 
 interface Props {
   course: Course;
@@ -8,6 +9,7 @@ interface Props {
   onContinueCourse?: () => void;
   problemStats?: { total: number; attempted: number; correct: number } | null;
   lectureCount?: number;
+  userLanguage?: string | null;
 }
 
 function formatCourseReadableId(readableId: string): string {
@@ -29,6 +31,7 @@ export default function CourseHeader({
   onContinueCourse,
   problemStats,
   lectureCount,
+  userLanguage,
 }: Props) {
   const department = course.departments?.[0]?.name ?? null;
   const run = course.runs?.[0];
@@ -101,15 +104,7 @@ export default function CourseHeader({
                   View on MIT OCW
                 </a>
               )}
-              <a
-                href={`/api/courses/${course.id}/download`}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#1a56db] px-8 py-4 font-bold text-white transition-colors hover:bg-[#1648c7] dark:bg-[#1a56db] dark:hover:bg-[#1648c7]"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                </svg>
-                Download Course
-              </a>
+              <DownloadButton courseId={course.id} userLanguage={userLanguage ?? null} />
             </div>
 
           </div>

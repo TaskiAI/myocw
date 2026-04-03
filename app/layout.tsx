@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import Navbar from "./components/Navbar";
 import CommandPalette from "./components/CommandPalette";
 import LanguagePopup from "./components/LanguagePopup";
 
-const inter = Inter({
+const inter = localFont({
+  src: "../public/fonts/InterVariable.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
+const interDisplay = localFont({
+  src: "../public/fonts/InterDisplay-Black.woff2",
+  variable: "--font-inter-display",
+  weight: "900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -31,7 +38,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} font-sans antialiased bg-zinc-50 dark:bg-zinc-950`}>
+      <body className={`${inter.variable} ${interDisplay.variable} font-sans antialiased bg-zinc-50 dark:bg-zinc-950`}>
         <Navbar />
         <CommandPalette />
         <LanguagePopup />
