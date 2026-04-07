@@ -30,7 +30,9 @@ import {
 } from "@/lib/offline-bundle";
 import { LANGUAGES, RTL_LANGUAGES } from "@/lib/languages";
 
-const KATEX_DIST = path.resolve("node_modules/katex/dist");
+function getKatexDist() {
+  return path.dirname(require.resolve("katex/dist/katex.min.css"));
+}
 
 function buildSupabase() {
   return createClient(
@@ -187,11 +189,11 @@ export async function GET(
   }
 
   // KaTeX CSS
-  const katexCss = fs.readFileSync(path.join(KATEX_DIST, "katex.min.css"));
+  const katexCss = fs.readFileSync(path.join(getKatexDist(), "katex.min.css"));
   zip.addFile(`${base}/katex/katex.min.css`, katexCss);
 
   // KaTeX fonts
-  const fontsDir = path.join(KATEX_DIST, "fonts");
+  const fontsDir = path.join(getKatexDist(), "fonts");
   for (const file of fs.readdirSync(fontsDir)) {
     if (file.endsWith(".woff2") || file.endsWith(".woff") || file.endsWith(".ttf")) {
       zip.addFile(
