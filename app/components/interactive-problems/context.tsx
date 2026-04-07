@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, type MutableRefObject } from "react";
+import type { KeyboardMemory } from "mathkeyboardengine";
 import type { ComponentSlot } from "./parse-tags";
 
 export type Phase = "answering" | "reviewing" | "graded";
@@ -10,6 +11,7 @@ export interface InteractiveProblemContextValue {
   answers: Record<number, string>;
   setAnswer: (slotIndex: number, value: string) => void;
   phase: Phase;
+  activeKeyboardMemoryRef?: MutableRefObject<KeyboardMemory | null>;
 }
 
 const InteractiveProblemContext =

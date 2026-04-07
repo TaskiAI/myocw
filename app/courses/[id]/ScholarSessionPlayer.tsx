@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { CourseSection, Resource, Problem } from "@/lib/types/course-content";
 import { getVideoProgress, markVideoCompleted } from "@/lib/queries/video-progress";
+import { getProblemAttempts } from "@/lib/queries/problem-progress";
 import {
   updateSectionTitle as updateCourseSectionTitle,
   updateResourceTitle as updateCourseResourceTitle,
@@ -183,12 +184,23 @@ export default function ScholarSessionPlayer({
     [sessions]
   );
 
+  // Map resource_id → set of problem IDs for that resource
+  const problemIdsByResource = useMemo(() => {
+    const map = new Map<number, Set<number>>();
+    for (const p of problems) {
+      if (!map.has(p.resource_id)) map.set(p.resource_id, new Set());
+      map.get(p.resource_id)!.add(p.id);
+    }
+    return map;
+  }, [problems]);
+
   /* --- State --- */
   const [sessionIdx, setSessionIdx] = useState(initialSession);
   const [resourceIdx, setResourceIdx] = useState(0);
   const [showUnitOverview, setShowUnitOverview] = useState(initialShowOverview);
   const [showSolution, setShowSolution] = useState(false);
   const [completedVideos, setCompletedVideos] = useState<Set<number>>(new Set());
+  const [attemptedProblemIds, setAttemptedProblemIds] = useState<Set<number>>(new Set());
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [expandedUnits, setExpandedUnits] = useState<Set<number>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -279,10 +291,13 @@ export default function ScholarSessionPlayer({
   /* --- Effects --- */
 
   useEffect(() => {
-    void getVideoProgress(courseId).then((videoSet) => {
-      setCompletedVideos(videoSet);
-      setProgressLoaded(true);
-    });
+    void Promise.all([getVideoProgress(courseId), getProblemAttempts(courseId)]).then(
+      ([videoSet, attemptsMap]) => {
+        setCompletedVideos(videoSet);
+        setAttemptedProblemIds(new Set(attemptsMap.keys()));
+        setProgressLoaded(true);
+      }
+    );
   }, [courseId]);
 
   useEffect(() => {
@@ -317,15 +332,34 @@ export default function ScholarSessionPlayer({
     setSidebarOpen(false);
   }, [sessionIdx]);
 
-  // Check if a session is completed (has at least one completed resource)
+  // Check if a session is completed (all completable resources done)
   const isSessionCompleted = useCallback(
     (session: CourseSection) => {
       if (!progressLoaded) return false;
       const res = resourcesBySection.get(session.id) ?? [];
-      const video = res.find((r) => r.resource_type === "video");
-      return video ? completedVideos.has(video.id) : false;
+      if (res.length === 0) return false;
+
+      let hasCompletable = false;
+
+      for (const r of res) {
+        if (r.resource_type === "video" || r.resource_type === "recitation" || r.resource_type === "reading" || r.resource_type === "lecture_notes") {
+          hasCompletable = true;
+          if (!completedVideos.has(r.id)) return false;
+        }
+        if (r.resource_type === "problem_set") {
+          const pids = problemIdsByResource.get(r.id);
+          if (pids && pids.size > 0) {
+            hasCompletable = true;
+            for (const pid of pids) {
+              if (!attemptedProblemIds.has(pid)) return false;
+            }
+          }
+        }
+      }
+
+      return hasCompletable;
     },
-    [progressLoaded, resourcesBySection, completedVideos]
+    [progressLoaded, resourcesBySection, completedVideos, attemptedProblemIds, problemIdsByResource]
   );
 
   // Mark a document resource as completed
@@ -446,8 +480,18 @@ export default function ScholarSessionPlayer({
   }, [activeResource, completedVideos]);
 
   const isResourceCompleted = useCallback(
-    (resource: Resource) => completedVideos.has(resource.id),
-    [completedVideos]
+    (resource: Resource) => {
+      if (resource.resource_type === "problem_set") {
+        const pids = problemIdsByResource.get(resource.id);
+        if (!pids || pids.size === 0) return false;
+        for (const pid of pids) {
+          if (!attemptedProblemIds.has(pid)) return false;
+        }
+        return true;
+      }
+      return completedVideos.has(resource.id);
+    },
+    [completedVideos, attemptedProblemIds, problemIdsByResource]
   );
 
   /* --- Title editing --- */
@@ -603,7 +647,7 @@ export default function ScholarSessionPlayer({
 
     // Show ProblemSetView for problem_set resources that have interactive problems
     // (otherwise fall through to content_text rendering which uses MarkdownContent/rehype-katex)
-    if (activeResource.resource_type === "problem_set") {
+    if (activeResource.resource_type === "problem_set" || activeResource.resource_type === "exam") {
       const resourceProblems = problems.filter((p) => p.resource_id === activeResource.id);
       const hasInteractive = resourceProblems.some((p) =>
         /<(FillInBlank|MultipleChoice|FreeResponse)\s/.test(p.question_text)
@@ -619,6 +663,15 @@ export default function ScholarSessionPlayer({
             courseId={courseId}
             canEdit={canEditContent}
             defaultProblemResourceId={activeResource.id}
+            title={activeResource.title}
+            onProblemAttempted={(problemId) => {
+              setAttemptedProblemIds((prev) => {
+                if (prev.has(problemId)) return prev;
+                const next = new Set(prev);
+                next.add(problemId);
+                return next;
+              });
+            }}
           />
         );
       }
@@ -627,6 +680,9 @@ export default function ScholarSessionPlayer({
     if (activeResource.content_text) {
       return (
         <div>
+          <h2 className="mb-5 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {activeResource.title}
+          </h2>
           <div className="mb-6 flex items-center justify-end">
             {canEditContent && (
               <button
@@ -690,6 +746,10 @@ export default function ScholarSessionPlayer({
     if (activeResource.pdf_path) {
       const displayingResource = showSolution && activeSolution?.pdf_path ? activeSolution : activeResource;
       return (
+        <div>
+          <h2 className="mb-5 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            {activeResource.title}
+          </h2>
         <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
           <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -723,6 +783,7 @@ export default function ScholarSessionPlayer({
             title={displayingResource.title}
             className="aspect-[4/3] w-full max-h-[70vh]"
           />
+        </div>
         </div>
       );
     }
@@ -1137,7 +1198,7 @@ export default function ScholarSessionPlayer({
               {navigableResources.length > 1 || prevSession || nextSession ? (
                 <div className="mt-8 flex items-stretch gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-700">
                   {/* Left: prev resource, or prev session if at first resource */}
-                  {resourceIdx > 0 ? (
+                  {resourceIdx > 0 && navigableResources[resourceIdx - 1] ? (
                     <button
                       onClick={() => goToResource(resourceIdx - 1)}
                       className="group flex flex-1 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-left transition-all duration-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-100/50 active:scale-[0.98] dark:border-blue-800 dark:bg-blue-950/30 dark:hover:border-blue-700 dark:hover:shadow-blue-900/30"
@@ -1168,7 +1229,7 @@ export default function ScholarSessionPlayer({
                   ) : <div className="flex-1" />}
 
                   {/* Right: next resource, or next session if at last resource, or "Course complete" */}
-                  {resourceIdx < navigableResources.length - 1 ? (
+                  {resourceIdx < navigableResources.length - 1 && navigableResources[resourceIdx + 1] ? (
                     <button
                       onClick={() => goToResource(resourceIdx + 1)}
                       className="group flex flex-1 items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 text-left transition-all duration-200 hover:border-blue-300 hover:shadow-md hover:shadow-blue-100/50 active:scale-[0.98] dark:border-blue-800 dark:bg-blue-950/30 dark:hover:border-blue-700 dark:hover:shadow-blue-900/30"

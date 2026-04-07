@@ -216,11 +216,11 @@ async function main() {
       .from("course_sections")
       .select("id, title, ordering")
       .eq("course_id", course.id)
-      .eq("section_type", "lecture")
+      .in("section_type", ["lecture", "exam"])
       .order("ordering");
 
     if (!sections?.length) {
-      console.error("No lecture sections found.");
+      console.error("No lecture/exam sections found.");
       process.exit(1);
     }
 
@@ -251,25 +251,30 @@ async function main() {
     return;
   }
 
-  // 4. Build problem_set → solution pairs (adjacency within section)
+  // 4. Build problem_set/exam → solution pairs (adjacency within section)
   const pairs: Array<{ pset: Resource; solution: Resource | null }> = [];
   for (let i = 0; i < resources.length; i++) {
     const r = resources[i] as Resource;
-    if (r.resource_type !== "problem_set") continue;
+    if (r.resource_type !== "problem_set" && r.resource_type !== "exam") continue;
     const next = resources[i + 1] as Resource | undefined;
-    const solution =
-      next?.resource_type === "solution" && next.section_id === r.section_id
-        ? next
-        : null;
+    // Solution is the next resource in the same section if it's typed "solution",
+    // or for exams, the next exam resource with an 's' suffix (e.g. ex1s.pdf)
+    const isSolution =
+      next &&
+      next.section_id === r.section_id &&
+      (next.resource_type === "solution" ||
+        (r.resource_type === "exam" && next.resource_type === "exam" && next.title && /s\.pdf$/i.test(next.title)));
+    const solution = isSolution ? next : null;
+    if (solution) i++; // skip the solution resource
     pairs.push({ pset: r, solution });
   }
 
   if (!pairs.length) {
-    console.log("No problem_set resources found.");
+    console.log("No problem_set or exam resources found.");
     return;
   }
 
-  console.log(`Found ${pairs.length} problem_set(s) to process.\n`);
+  console.log(`Found ${pairs.length} problem set(s) / exam(s) to process.\n`);
 
   let totalInserted = 0;
   let totalSkipped = 0;

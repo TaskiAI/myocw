@@ -310,6 +310,7 @@ video{width:100%;border-radius:8px;background:#000}
 .session-list{list-style:none;padding:0 0 0 16px;margin:4px 0 0}
 .session-list li{border-bottom:1px solid #f1f5f9}
 .session-list li:last-child{border-bottom:none}
+.unit-header{display:flex;align-items:baseline;padding:14px 8px;color:#0f172a;font-size:.95em;font-weight:500}
 .session-list a{display:block;padding:8px 4px;font-size:.875em;text-decoration:none;color:#475569;transition:color .15s}
 .session-list a:hover{color:#750014}
 .fill-blank{display:inline-flex;align-items:center;gap:6px;vertical-align:middle}
@@ -534,8 +535,15 @@ export function renderIndexPage(
             .join("")}</ul>`
         : "";
 
+      // Units with children are non-clickable headers — their content lives
+      // in the child session pages, so linking to a unit page would duplicate it.
+      const hasChildren = children.length > 0;
+      const label = hasChildren
+        ? `<span class="unit-header">${esc(s.title)}<span class="section-type">${esc(humanizeSectionType(s.section_type))}</span></span>`
+        : `<a href="sections/${s.slug}.html">${esc(s.title)}<span class="section-type">${esc(humanizeSectionType(s.section_type))}</span></a>`;
+
       return `<li>
-<a href="sections/${s.slug}.html">${esc(s.title)}<span class="section-type">${esc(humanizeSectionType(s.section_type))}</span></a>
+${label}
 ${childList}
 </li>`;
     })

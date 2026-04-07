@@ -42,7 +42,7 @@ export default function RootLayout({
         <Navbar />
         <CommandPalette />
         <LanguagePopup />
-        <div className="pt-20 min-h-screen">
+        <div className="pt-16 md:pt-20 min-h-screen">
           {children}
         </div>
         <footer className="border-t border-zinc-200 bg-zinc-50 px-6 py-8 dark:border-zinc-800 dark:bg-zinc-950">

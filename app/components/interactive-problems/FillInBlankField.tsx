@@ -1,7 +1,9 @@
 "use client";
 
 import { useInteractiveProblem } from "./context";
+import MathInput from "./MathInput";
 import MathText from "@/app/components/MathText";
+import { latexAnswersMatch } from "@/lib/math/normalize-latex";
 
 interface Props {
   slotIndex: number;
@@ -9,10 +11,14 @@ interface Props {
 }
 
 export default function FillInBlankField({ slotIndex, answer }: Props) {
-  const { answers, setAnswer, phase } = useInteractiveProblem();
+  const { answers, setAnswer, phase, activeKeyboardMemoryRef } = useInteractiveProblem();
   const value = answers[slotIndex] ?? "";
   const isAnswering = phase === "answering";
-  const isCorrect = value.trim().toLowerCase() === answer.trim().toLowerCase();
+
+  // Check correctness: try LaTeX match first, then plain text
+  const isCorrect =
+    latexAnswersMatch(value, answer) ||
+    value.trim().toLowerCase() === answer.trim().toLowerCase();
 
   if (!isAnswering) {
     return (
@@ -24,23 +30,34 @@ export default function FillInBlankField({ slotIndex, answer }: Props) {
               : "border-red-400 bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300"
           }`}
         >
-          {value || <span className="italic text-zinc-400">blank</span>}
+          {value ? (
+            <MathText>{value}</MathText>
+          ) : (
+            <span className="italic text-zinc-400">blank</span>
+          )}
         </span>
         {!isCorrect && (
-          <span className="text-xs text-green-700 dark:text-green-400">{answer}</span>
+          <span className="text-xs text-green-700 dark:text-green-400">
+            <MathText>{answer}</MathText>
+          </span>
         )}
       </span>
     );
   }
 
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => setAnswer(slotIndex, e.target.value)}
-      placeholder="..."
-      style={{ width: `${Math.max(answer.length * 0.65, 3)}em` }}
-      className="inline-block rounded border border-zinc-300 bg-white px-2 py-0.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-    />
+    <span className="inline-block align-middle">
+      <MathInput
+        value={value}
+        onChange={(latex) => setAnswer(slotIndex, latex)}
+        onKeyboardMemoryReady={(km) => {
+          if (activeKeyboardMemoryRef) {
+            activeKeyboardMemoryRef.current = km;
+          }
+        }}
+        placeholder="..."
+        className="text-sm"
+      />
+    </span>
   );
 }

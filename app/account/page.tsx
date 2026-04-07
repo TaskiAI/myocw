@@ -10,8 +10,8 @@ export default async function AccountPage() {
   if (!userId) redirect("/login");
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-12">
-      <section className="rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
+      <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 md:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#750014]">
           Account
         </p>
@@ -29,7 +29,7 @@ export default async function AccountPage() {
 
       {canEdit && (
         <>
-          <section className="mt-8 rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <section className="mt-8 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 md:p-8">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#750014]">
               Tools
             </p>

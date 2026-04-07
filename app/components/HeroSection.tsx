@@ -12,7 +12,7 @@ import HeroHeading from "./HeroHeading";
 
 export default function HeroSection() {
   return (
-    <div className="relative w-full h-[calc(100vh-5rem)]">
+    <div className="relative w-full h-[60vh] overflow-hidden md:h-[calc(100vh-5rem)]">
       {/* Crimson panel: right half, expands from center to right edge */}
       <motion.div
         className="absolute top-0 bottom-0"
@@ -39,18 +39,18 @@ export default function HeroSection() {
       />
       {/* Left column */}
       <div className="absolute top-0 left-0 w-1/2 h-full flex flex-col">
-        <div className="p-12 flex items-start justify-start h-1/2">
+        <div className="p-4 sm:p-8 md:p-12 flex items-start justify-start h-1/2">
           <HeroHeading lines={["2,500 Courses", "from MIT"]} />
         </div>
-        <div className="p-12 flex items-end justify-start h-1/2">
+        <div className="p-4 sm:p-8 md:p-12 flex items-end justify-start h-1/2">
           <HeroHeading
-            lines={["Completely", "Yours"]}
+            lines={["Made", "Interactive"]}
             delayOffset={2.5}
           />
         </div>
       </div>
       {/* Right column: text centered vertically across full height */}
-      <div className="absolute top-0 right-0 w-1/2 h-full p-12 flex items-center justify-end text-right">
+      <div className="absolute top-0 right-0 w-1/2 h-full p-4 sm:p-8 md:p-12 flex items-center justify-end text-right">
         <HeroHeading
           lines={["Anywhere in", "the World"]}
           delayOffset={1.25}

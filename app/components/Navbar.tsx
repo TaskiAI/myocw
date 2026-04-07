@@ -13,9 +13,15 @@ export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const supabase = createClient();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -82,9 +88,9 @@ export default function Navbar() {
       transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const }}
       className="fixed top-0 z-50 w-full bg-white/80 backdrop-blur-md dark:bg-zinc-950/80"
     >
-      <div className="mx-auto flex h-20 max-w-screen-2xl items-center justify-between px-6 md:px-12">
+      <div className="mx-auto flex h-16 max-w-screen-2xl items-center justify-between px-6 md:h-20 md:px-12">
         {/* Left: Logo + Nav */}
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-4 md:gap-8">
           <Link href="/" className="flex items-center">
             <Image
               src="/myocw.svg"
@@ -114,7 +120,7 @@ export default function Navbar() {
         </div>
 
         {/* Right: Search + Theme + Auth */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {user && language && (
             <button
               onClick={() => window.dispatchEvent(new Event("open-language-popup"))}
@@ -166,15 +172,33 @@ export default function Navbar() {
           </button>
 
           {user ? (
-            <button
-              onClick={handleSignOut}
-              className="rounded-full p-3 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800"
-              aria-label="Sign out"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-              </svg>
-            </button>
+            <>
+              <button
+                onClick={handleSignOut}
+                className="rounded-full p-3 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800"
+                aria-label="Sign out"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                </svg>
+              </button>
+              {/* Hamburger menu button — mobile only */}
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label={menuOpen ? "Close menu" : "Open menu"}
+                className="rounded-full p-3 text-zinc-600 transition-all hover:bg-[#f3f4f5] dark:text-zinc-400 dark:hover:bg-zinc-800 md:hidden"
+              >
+                {menuOpen ? (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                  </svg>
+                )}
+              </button>
+            </>
           ) : (
             <Link
               href="/login"
@@ -185,6 +209,55 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Mobile menu panel */}
+      {user && menuOpen && (
+        <div className="border-b border-zinc-200 bg-white/95 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95 md:hidden">
+          <nav className="flex flex-col px-6 py-3">
+            {[
+              { href: "/courses", label: "Courses" },
+              { href: "/my-courses", label: "My Courses" },
+              { href: "/curricula", label: "Pathways" },
+              { href: "/account", label: "Account" },
+            ].map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`block py-3 text-base font-medium transition-colors ${
+                  isActive(link.href)
+                    ? "text-[#810020] dark:text-[#ffb3b5]"
+                    : "text-zinc-600 dark:text-zinc-400"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                window.dispatchEvent(new Event("open-command-palette"));
+              }}
+              className="flex items-center gap-2 py-3 text-base font-medium text-zinc-600 transition-colors dark:text-zinc-400"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Search
+            </button>
+            {language && (
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  window.dispatchEvent(new Event("open-language-popup"));
+                }}
+                className="flex items-center gap-2 py-3 text-base font-medium text-zinc-600 transition-colors dark:text-zinc-400"
+              >
+                {language}
+              </button>
+            )}
+          </nav>
+        </div>
+      )}
     </motion.header>
   );
 }

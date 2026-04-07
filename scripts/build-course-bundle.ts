@@ -197,11 +197,17 @@ async function main() {
     sectionsByParent.get(key)!.push(s);
   }
 
+  // Skip generating pages for units (sections with children) — they are not linked
+  const hasChildren = new Set(
+    sections.filter((s) => sections.some((c) => c.parent_id === s.id)).map((s) => s.id)
+  );
+
   let pagesWritten = 0;
   for (const [, siblings] of sectionsByParent) {
     const sorted = siblings.sort((a, b) => a.ordering - b.ordering);
     for (let idx = 0; idx < sorted.length; idx++) {
       const section = sorted[idx];
+      if (hasChildren.has(section.id)) continue; // unit pages are not linked
       const html = renderSectionPage(
         course,
         section,

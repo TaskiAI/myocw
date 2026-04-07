@@ -18,6 +18,7 @@ interface Props {
   canEdit?: boolean;
   defaultProblemResourceId?: number | null;
   onProblemAttempted?: (problemId: number) => void;
+  title?: string;
 }
 
 function pillIcon(attempt: UserProblemAttempt | undefined): string | null {
@@ -50,6 +51,7 @@ export default function ProblemSetView({
   canEdit = false,
   defaultProblemResourceId = null,
   onProblemAttempted,
+  title,
 }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [attempts, setAttempts] = useState<Map<number, UserProblemAttempt>>(new Map());
@@ -222,7 +224,14 @@ export default function ProblemSetView({
   if (!activeProblem && !canEdit) return null;
 
   return (
-    <div>
+    <div className="rounded-2xl bg-zinc-50 p-1 dark:bg-zinc-950">
+      {/* Title */}
+      {title && (
+        <h2 className="mb-4 px-1 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+          {title}
+        </h2>
+      )}
+
       {/* Progress summary */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -262,24 +271,44 @@ export default function ProblemSetView({
         </div>
       )}
 
-      {/* Problem nav strip */}
-      <div className="mb-4 flex flex-wrap gap-1.5">
+      {/* Problem nav strip — single connected bar */}
+      <div className="mb-4 flex overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         {editableProblems.map((problem, i) => {
           const attempt = attempts.get(problem.id);
           const isActive = i === activeIndex;
           const icon = pillIcon(attempt);
+          const label = problem.problem_label
+            ? problem.problem_label.length > 22
+              ? problem.problem_label.slice(0, 21) + "…"
+              : problem.problem_label
+            : null;
           return (
             <button
               key={problem.id}
               type="button"
               onClick={() => setActiveIndex(i)}
-              className={`flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white px-2 text-xs font-medium transition-colors whitespace-nowrap dark:border-zinc-700 dark:bg-zinc-900 ${
-                isActive ? "ring-2 ring-[#750014] ring-offset-1 dark:ring-offset-zinc-950" : ""
+              title={problem.problem_label || `Problem ${i + 1}`}
+              className={`flex shrink-0 items-center gap-1.5 border-r border-zinc-200 px-3 py-2.5 text-xs font-medium transition-colors last:border-r-0 dark:border-zinc-700 ${
+                isActive
+                  ? "bg-zinc-100 dark:bg-zinc-800"
+                  : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
               }`}
             >
-              <span className="text-zinc-600 dark:text-zinc-400">{i + 1}</span>
+              <span className={`tabular-nums font-bold ${isActive ? "text-[#750014]" : "text-zinc-400 dark:text-zinc-500"}`}>
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              {label && (
+                <span className={`whitespace-nowrap ${isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"}`}>
+                  {label}
+                </span>
+              )}
               {icon && (
-                <span className="ml-1 text-[10px] text-zinc-500 dark:text-zinc-500">{icon}</span>
+                <span className={`ml-0.5 text-[10px] ${
+                  attempt?.self_grade === "correct" ? "text-green-500" :
+                  attempt?.self_grade === "partially_correct" ? "text-yellow-500" :
+                  attempt?.self_grade === "incorrect" ? "text-red-500" :
+                  "text-zinc-400"
+                }`}>{icon}</span>
               )}
             </button>
           );

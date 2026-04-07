@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
+import type { KeyboardMemory } from "mathkeyboardengine";
 import type { Problem, SelfGrade, UserProblemAttempt } from "@/lib/types/course-content";
 import { submitProblemAttempt } from "@/lib/queries/problem-progress";
 import MathText from "@/app/components/MathText";
+import MathInput from "@/app/components/interactive-problems/MathInput";
+import MathToolbar from "@/app/components/interactive-problems/MathToolbar";
 import {
   tokenizeInteractiveComponents,
   hasInteractiveTags,
@@ -29,7 +32,7 @@ const GRADE_OPTIONS: { value: SelfGrade; label: string; color: string }[] = [
   { value: "unsure", label: "Unsure", color: "bg-zinc-100 text-zinc-700 border-zinc-300" },
 ];
 const MATH_CONTENT_CLASS =
-  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words dark:text-zinc-300";
+  "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words overflow-x-auto dark:text-zinc-300";
 
 function gradeBadge(grade: SelfGrade) {
   const option = GRADE_OPTIONS.find((o) => o.value === grade);
@@ -124,6 +127,11 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
   const [currentGrade, setCurrentGrade] = useState<SelfGrade | null>(existingAttempt?.self_grade ?? null);
   const [submitting, setSubmitting] = useState(false);
 
+  // MKE keyboard memory ref for toolbar targeting
+  const activeKeyboardMemoryRef = useRef<KeyboardMemory | null>(null);
+  const [toolbarKm, setToolbarKm] = useState<KeyboardMemory | null>(null);
+  const [renderTrigger, setRenderTrigger] = useState(0);
+
   const setSlotAnswer = useCallback((slotIndex: number, value: string) => {
     setInteractiveAnswers((prev) => ({ ...prev, [slotIndex]: value }));
   }, []);
@@ -201,7 +209,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
   return (
     <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
       {/* Problem header */}
-      <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
+      <div className="border-b border-zinc-100 px-4 py-4 dark:border-zinc-800 md:px-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
             Problem {problem.problem_label}
@@ -211,7 +219,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
       </div>
 
       {/* Problem text */}
-      <div className="px-6 py-4">
+      <div className="px-4 py-4 md:px-6">
         <div className={MATH_CONTENT_CLASS}>
           {isInteractive ? (
             <InteractiveProblemProvider
@@ -219,6 +227,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
               answers={interactiveAnswers}
               setAnswer={setSlotAnswer}
               phase={phase}
+              activeKeyboardMemoryRef={activeKeyboardMemoryRef}
             >
               <MathText
                 componentSlots={slots}
@@ -234,24 +243,37 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
       </div>
 
       {/* Answer area */}
-      <div className="border-t border-zinc-100 px-6 py-4 dark:border-zinc-800">
+      <div className="border-t border-zinc-100 px-4 py-4 dark:border-zinc-800 md:px-6">
         {phase === "answering" && (
           <>
-            {/* Classic textarea — only for non-interactive problems */}
+            {/* Classic MathInput — only for non-interactive problems */}
             {!isInteractive && (
               <>
                 <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Your Answer
                 </label>
-                <textarea
+                <MathInput
                   value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
+                  onChange={(latex) => setAnswer(latex)}
+                  onKeyboardMemoryReady={(km) => {
+                    activeKeyboardMemoryRef.current = km;
+                    setToolbarKm(km);
+                  }}
                   placeholder="Type your answer here..."
-                  rows={5}
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#750014] focus:outline-none focus:ring-1 focus:ring-[#750014] dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  fullWidth
+                  renderTrigger={renderTrigger}
                 />
               </>
             )}
+
+            {/* Math toolbar — shown when we have a keyboard memory */}
+            <div className="mt-2">
+              <MathToolbar
+                keyboardMemory={toolbarKm ?? activeKeyboardMemoryRef.current}
+                onUpdate={() => setRenderTrigger((n) => n + 1)}
+              />
+            </div>
+
             <button
               type="button"
               onClick={() => setPhase("reviewing")}
@@ -270,7 +292,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
               <div className="mb-4">
                 <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  {answer}
+                  <MathText>{answer}</MathText>
                 </div>
               </div>
             )}
@@ -303,7 +325,7 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
               <div className="mb-4">
                 <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  {existingAttempt?.answer_text ?? answer}
+                  <MathText>{existingAttempt?.answer_text ?? answer}</MathText>
                 </div>
               </div>
             )}

@@ -32,6 +32,9 @@ importers:
       katex:
         specifier: ^0.16.33
         version: 0.16.33
+      mathkeyboardengine:
+        specifier: ^1.1.1
+        version: 1.1.1
       next:
         specifier: 16.1.6
         version: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -3065,6 +3068,9 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
+
+  mathkeyboardengine@1.1.1:
+    resolution: {integrity: sha512-NBYXL76n0sEfAYusm1buE+R9+A9cCxz4a/v+cUuK/omTTDthGVSl2XB9UPqe92zYjvhdJX0DEJKAbkhELhjetw==}
 
   mdast-util-from-markdown@2.0.3:
     resolution: {integrity: sha512-W4mAWTvSlKvf8L6J+VN9yLSqQ9AOAAvHuoDAmPkz4dHf553m5gVj2ejadHJhoJmcmxEnOv6Pa8XJhpxE93kb8Q==}
@@ -7731,6 +7737,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   math-intrinsics@1.1.0: {}
+
+  mathkeyboardengine@1.1.1: {}
 
   mdast-util-from-markdown@2.0.3:
     dependencies:

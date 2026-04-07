@@ -69,7 +69,7 @@ export default function CourseHeader({
               </h1>
               {course.description && (
                 <div
-                  className="course-description max-w-2xl text-lg leading-relaxed text-[#594141] dark:text-zinc-400"
+                  className="course-description max-w-2xl text-base leading-relaxed text-[#594141] dark:text-zinc-400 md:text-lg"
                   dangerouslySetInnerHTML={{ __html: course.description }}
                 />
               )}
@@ -80,7 +80,7 @@ export default function CourseHeader({
               {showContinueButton && onContinueCourse && (
                 <button
                   onClick={onContinueCourse}
-                  className="group inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#810020] to-[#a31f34] px-8 py-4 font-bold text-white transition-opacity hover:opacity-90"
+                  className="group inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#810020] to-[#a31f34] px-5 py-3 font-bold text-white transition-opacity hover:opacity-90 md:px-8 md:py-4"
                 >
                   Resume Course
                   <svg
@@ -99,7 +99,7 @@ export default function CourseHeader({
                   href={course.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center rounded-lg bg-[#e7e8e9] px-8 py-4 font-bold text-[#191c1d] transition-colors hover:bg-[#e1e3e4] dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                  className="inline-flex items-center rounded-lg bg-[#e7e8e9] px-5 py-3 font-bold text-[#191c1d] transition-colors hover:bg-[#e1e3e4] dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 md:px-8 md:py-4"
                 >
                   View on MIT OCW
                 </a>
@@ -207,7 +207,7 @@ export default function CourseHeader({
 
       {/* Metadata strip */}
       <div className="mt-8 border-t border-[#e0bfbf]/20 pt-8">
-        <div className="grid grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-8">
           {levels.length > 0 && (
             <div>
               <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-zinc-400">

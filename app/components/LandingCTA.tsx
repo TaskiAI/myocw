@@ -14,12 +14,13 @@ const images = [
 ];
 
 // Staggered layout: images cascade down with slight overlap, fits ~100vh
+// Top offset pushes the tower away from the section edge
 const positions = [
-  { top: 0, left: 40, width: 240, height: 160 },
-  { top: 130, left: -15, width: 220, height: 250 },
-  { top: 340, left: 70, width: 210, height: 180 },
-  { top: 480, left: -5, width: 200, height: 165 },
-  { top: 610, left: 55, width: 230, height: 180 },
+  { top: 60, left: 40, width: 240, height: 160 },
+  { top: 190, left: -15, width: 220, height: 250 },
+  { top: 400, left: 70, width: 210, height: 180 },
+  { top: 540, left: -5, width: 200, height: 165 },
+  { top: 670, left: 55, width: 230, height: 180 },
 ];
 
 function ScrollImage({
@@ -75,9 +76,9 @@ export default function LandingCTA() {
 
   return (
     <section ref={sectionRef} className="relative bg-white overflow-hidden">
-      <div className="relative mx-auto max-w-7xl h-[calc(100vh-5rem)]">
-        {/* Staggered image column on the left */}
-        <div className="relative w-1/2 h-full">
+      <div className="relative mx-auto max-w-7xl min-h-[50vh] md:h-[calc(100vh-5rem)] flex flex-col md:flex-row">
+        {/* Staggered image column on the left — hidden on mobile */}
+        <div className="relative hidden md:block md:w-[42%] md:flex-shrink-0 md:h-full">
           {images.map((img, i) => (
             <ScrollImage
               key={i}
@@ -90,11 +91,11 @@ export default function LandingCTA() {
         </div>
 
         {/* Text on the right, vertically centered */}
-        <div className="absolute top-0 right-0 w-1/2 h-full flex flex-col justify-center items-start pl-16 pr-12">
+        <div className="flex-1 flex flex-col justify-center items-start px-6 py-12 md:py-0 md:pl-16 md:pr-12">
           <div
             style={{
               fontFamily: "var(--font-inter)",
-              fontSize: "64px",
+              fontSize: "clamp(24px, 6vw, 64px)",
               lineHeight: "110%",
               letterSpacing: "-0.05em",
               WebkitFontSmoothing: "antialiased",
@@ -121,7 +122,7 @@ export default function LandingCTA() {
               {[
                 <>You don&apos;t have to</>,
                 <>be <span className="text-[#750014]">here</span> to learn</>,
-                <>from here.</>,
+                <>from <span className="text-[#750014]">here</span>.</>,
               ].map((line, i) => (
                 <motion.span
                   key={`b-${i}`}
@@ -150,7 +151,7 @@ export default function LandingCTA() {
           >
             <Link
               href="/courses"
-              className="inline-flex items-center bg-black text-white px-10 py-5 text-lg font-semibold transition-colors hover:bg-zinc-800"
+              className="inline-flex items-center bg-black text-white px-6 py-3 text-base font-semibold transition-colors hover:bg-zinc-800 md:px-10 md:py-5 md:text-lg"
             >
               Start Learning
             </Link>

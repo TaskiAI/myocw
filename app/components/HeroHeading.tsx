@@ -15,11 +15,11 @@ export default function HeroHeading({
 }) {
   return (
     <h1
-      className="text-left font-bold"
+      className="text-left font-bold max-w-full"
       style={{
         color: textColor,
         fontFamily: "var(--font-inter)",
-        fontSize: "110px",
+        fontSize: "clamp(28px, 8vw, 110px)",
         lineHeight: "104%",
         letterSpacing: "-0.07em",
         WebkitFontSmoothing: "antialiased",

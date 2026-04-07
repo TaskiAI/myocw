@@ -38,16 +38,17 @@ export default function Pagination({ currentPage, totalPages }: PaginationProps)
       <button
         onClick={() => goToPage(currentPage - 1)}
         disabled={currentPage <= 1}
-        className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent"
+        className="rounded-lg px-2 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent sm:px-3"
       >
-        Previous
+        <span className="sm:hidden">&larr;</span>
+        <span className="hidden sm:inline">Previous</span>
       </button>
 
       {pages.map((page) => (
         <button
           key={page}
           onClick={() => goToPage(page)}
-          className={`min-w-[2.25rem] rounded-lg px-3 py-2 text-sm font-medium ${
+          className={`min-w-[2rem] rounded-lg px-2 py-2 text-sm font-medium sm:min-w-[2.25rem] sm:px-3 ${
             page === currentPage
               ? "bg-[#750014] text-white"
               : "text-zinc-600 hover:bg-zinc-100"
@@ -60,9 +61,10 @@ export default function Pagination({ currentPage, totalPages }: PaginationProps)
       <button
         onClick={() => goToPage(currentPage + 1)}
         disabled={currentPage >= totalPages}
-        className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent"
+        className="rounded-lg px-2 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent sm:px-3"
       >
-        Next
+        <span className="sm:hidden">&rarr;</span>
+        <span className="hidden sm:inline">Next</span>
       </button>
     </div>
   );

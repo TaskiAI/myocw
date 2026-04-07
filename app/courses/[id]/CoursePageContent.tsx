@@ -320,9 +320,50 @@ export default function CoursePageContent({
     [course.runs]
   );
 
+  // Resources grouped by section for resume logic
+  const resourcesBySection = useMemo(() => {
+    const map = new Map<number, Resource[]>();
+    for (const r of resources) {
+      if (r.section_id == null) continue;
+      const list = map.get(r.section_id) || [];
+      list.push(r);
+      map.set(r.section_id, list);
+    }
+    return map;
+  }, [resources]);
+
+  // Sessions list for Scholar (non-unit sections in order)
+  const sessions = useMemo(() => {
+    if (!isScholar) return [];
+    return sortedSections.filter((s) => s.section_type !== "unit");
+  }, [isScholar, sortedSections]);
+
   const handleContinueCourse = useCallback(() => {
+    if (isScholar && sessions.length > 0) {
+      // Find first session that has at least one incomplete completable resource
+      let resumeIdx = 0;
+      for (let i = 0; i < sessions.length; i++) {
+        const res = resourcesBySection.get(sessions[i].id) ?? [];
+        const completableTypes = new Set(["video", "recitation", "reading", "lecture_notes"]);
+        const completable = res.filter((r) => completableTypes.has(r.resource_type));
+        if (completable.length === 0) continue;
+        const allDone = completable.every((r) => completedVideos.has(r.id));
+        if (!allDone) {
+          resumeIdx = i;
+          break;
+        }
+        // If all done, advance resume past this session
+        resumeIdx = i + 1;
+      }
+      // Clamp to last session if everything is completed
+      if (resumeIdx >= sessions.length) resumeIdx = sessions.length - 1;
+      setOverrideSession(resumeIdx);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("lecture", String(resumeIdx + 1));
+      router.push(`/courses/${course.id}?${params.toString()}`, { scroll: false });
+    }
     setPlayerMode(true);
-  }, []);
+  }, [isScholar, sessions, resourcesBySection, completedVideos, searchParams, router, course.id]);
 
   const handleExitPlayer = useCallback(() => {
     setPlayerMode(false);
