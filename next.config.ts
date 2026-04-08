@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "archive.org" },
     ],
   },
-  serverExternalPackages: ["katex"],
 };
 
 export default nextConfig;
