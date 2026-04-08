@@ -7,12 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "archive.org" },
     ],
   },
-  outputFileTracingIncludes: {
-    "/api/courses/\\[id\\]/download": [
-      "./node_modules/katex/dist/katex.min.css",
-      "./node_modules/katex/dist/fonts/**/*",
-    ],
-  },
+  serverExternalPackages: ["katex"],
 };
 
 export default nextConfig;
