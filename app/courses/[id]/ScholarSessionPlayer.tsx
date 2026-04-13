@@ -9,9 +9,16 @@ import {
   updateResourceTitle as updateCourseResourceTitle,
   updateResourceContentText,
 } from "@/lib/actions/update-titles";
+import dynamic from "next/dynamic";
 import YouTubePlayer from "./YouTubePlayer";
 import ProblemSetView from "./ProblemSetView";
 import MarkdownContent from "@/app/components/MarkdownContent";
+import { CODING_PSETS } from "@/lib/data/coding-psets";
+
+const PythonPsetPlayer = dynamic(
+  () => import("@/app/components/python-player/PythonPsetPlayer"),
+  { ssr: false }
+);
 
 interface Props {
   sections: CourseSection[];
@@ -645,6 +652,40 @@ export default function ScholarSessionPlayer({
       );
     }
 
+    // Show PythonPsetPlayer for coding problem sets
+    const codingConfig = CODING_PSETS[activeResource.id];
+    if (codingConfig) {
+      // Check if parsed coding steps exist in the problems table
+      const resourceProblems = problems.filter((p) => p.resource_id === activeResource.id);
+      const codingSteps = resourceProblems
+        .sort((a, b) => a.ordering - b.ordering)
+        .map((p) => {
+          try {
+            const data = JSON.parse(p.solution_text ?? "");
+            if (data.test_snippet) {
+              return {
+                label: p.problem_label.split(":")[0]?.trim() ?? String(p.ordering + 1),
+                title: p.problem_label.includes(":") ? p.problem_label.split(":").slice(1).join(":").trim() : p.problem_label,
+                instructions: p.question_text,
+                test_snippet: data.test_snippet ?? "",
+              };
+            }
+          } catch { /* not a coding step */ }
+          return null;
+        })
+        .filter(Boolean) as Array<{ label: string; title: string; instructions: string; test_snippet: string }>;
+
+      return (
+        <PythonPsetPlayer
+          courseId={courseId}
+          psetId={codingConfig.psetId}
+          templateCodeUrl={codingConfig.templateCodeUrl}
+          resourceFiles={codingConfig.resourceFiles}
+          steps={codingSteps.length > 0 ? codingSteps : undefined}
+        />
+      );
+    }
+
     // Show ProblemSetView for problem_set resources that have interactive problems
     // (otherwise fall through to content_text rendering which uses MarkdownContent/rehype-katex)
     if (activeResource.resource_type === "problem_set" || activeResource.resource_type === "exam") {
@@ -1066,7 +1107,7 @@ export default function ScholarSessionPlayer({
       )}
 
       {/* ---- Main area ---- */}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 bg-zinc-50 dark:bg-zinc-900">
         {/* Horizontal resource tab bar */}
         {!showUnitOverview && (
           <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-700 dark:bg-zinc-950/95">

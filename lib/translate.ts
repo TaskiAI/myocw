@@ -1,12 +1,12 @@
 /**
  * Translation engine.
  *
- * Translates course content (problems, resources) via Gemini 3 Flash Preview,
+ * Translates course content (problems, resources) via OpenAI GPT-5.4 Mini,
  * with LaTeX / interactive-tag preservation and DB caching.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { createHash } from "crypto";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,7 +14,7 @@ type AnySupabaseClient = SupabaseClient<any, any, any>;
 
 // ---- Config ----
 
-const GEMINI_MODEL = "gemini-3-flash-preview";
+const OPENAI_MODEL = "gpt-5.4-mini";
 const DELAY_MS = 1500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -26,16 +26,16 @@ interface Extraction {
 }
 
 /**
- * Extract LaTeX math spans and interactive component tags from text,
- * replacing them with numbered `<<MATH_N>>` / `<<COMP_N>>` placeholders.
- * This prevents the LLM from mangling math notation during translation.
+ * Extract interactive component tags from text, replacing them with
+ * numbered `<<COMP_N>>` placeholders. LaTeX math spans are kept in the
+ * text so the LLM can translate `\text{...}` content inside them.
  */
 export function extractPlaceholders(text: string): Extraction {
   const placeholders: string[] = [];
   let idx = 0;
 
-  // 1. Extract interactive tags: <FillInBlank .../>, <MultipleChoice .../>, <FreeResponse .../>
-  let cleaned = text.replace(
+  // Extract interactive tags: <FillInBlank .../>, <MultipleChoice .../>, <FreeResponse .../>
+  const cleaned = text.replace(
     /<(FillInBlank|MultipleChoice|FreeResponse)\b[^>]*\/>/g,
     (match) => {
       const i = idx++;
@@ -44,24 +44,14 @@ export function extractPlaceholders(text: string): Extraction {
     }
   );
 
-  // 2. Extract LaTeX math spans (order matters — $$ before $)
-  cleaned = cleaned.replace(
-    /\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\$([^$\n]+?)\$|\\\(([\s\S]*?)\\\)/g,
-    (match) => {
-      const i = idx++;
-      placeholders.push(match);
-      return `<<MATH_${i}>>`;
-    }
-  );
-
   return { cleaned, placeholders };
 }
 
 /**
- * Restore placeholders in translated text back to original LaTeX/component markup.
+ * Restore placeholders in translated text back to original component markup.
  */
 export function restorePlaceholders(text: string, placeholders: string[]): string {
-  return text.replace(/<<(?:MATH|COMP)_(\d+)>>/g, (_match, num) => {
+  return text.replace(/<<COMP_(\d+)>>/g, (_match, num) => {
     const i = Number(num);
     return placeholders[i] ?? _match;
   });
@@ -70,26 +60,24 @@ export function restorePlaceholders(text: string, placeholders: string[]): strin
 // ---- LLM translation ----
 
 function buildPrompt(language: string): string {
-  return `Translate the following educational content from English to ${language}.
+  return `You are translating university-level math and science courseware from English to ${language}. Use formal, academic, textbook-standard terminology — the kind found in published ${language}-language university textbooks. Never use colloquial or simplified synonyms for technical terms (e.g. "scalar" → "escalar", not "número"; "vector space" → "espacio vectorial", not a loose paraphrase).
 
 Rules:
-- Preserve ALL placeholders exactly as they appear (<<MATH_0>>, <<COMP_0>>, etc.)
+- Preserve ALL placeholders exactly as they appear (<<COMP_0>>, <<COMP_1>>, etc.)
 - Preserve markdown formatting (**, *, \`, #, lists, etc.)
-- Do not translate variable names, function names, or code
-- Do not translate placeholder tokens
+- Preserve all LaTeX math delimiters ($...$, $$...$$, \\[...\\], \\(...\\)) and LaTeX commands exactly
+- IMPORTANT: Translate ALL English words inside LaTeX blocks to ${language}. This means bare words like "and", "where", "if", words inside \\text{}, \\textbf{}, \\textit{}, \\mathrm{} — any English word that is not a variable name or LaTeX command must be translated. Examples: "and" → "y", "where" → "donde", \\text{velocity} → \\text{velocidad}
+- Do not translate single-letter variable names (x, y, A, b), LaTeX commands, or code
 - Maintain the same paragraph and line structure
-- Be accurate with mathematical/scientific terminology in ${language}
-- Output ONLY the translated text, no explanations or commentary
+- Output ONLY the translated text, no explanations or commentary`;
 
-Content:
-`;
 }
 
 /**
- * Translate a single text via Gemini, preserving LaTeX and interactive tags.
+ * Translate a single text via OpenAI, preserving LaTeX and interactive tags.
  */
 export async function translateText(
-  ai: InstanceType<typeof GoogleGenAI>,
+  ai: OpenAI,
   text: string,
   language: string
 ): Promise<string> {
@@ -97,19 +85,23 @@ export async function translateText(
 
   const { cleaned, placeholders } = extractPlaceholders(text);
 
-  // If there are no natural-language words to translate (pure math), return as-is
-  const wordsOnly = cleaned.replace(/<<(?:MATH|COMP)_\d+>>/g, "").trim();
+  // If there are no natural-language words to translate (pure math/placeholders), return as-is
+  const wordsOnly = cleaned
+    .replace(/<<COMP_\d+>>/g, "")
+    .replace(/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[^$\n]+?\$|\\\([\s\S]*?\\\)/g, "")
+    .trim();
   if (!wordsOnly) return text;
 
-  const prompt = buildPrompt(language) + cleaned;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: [{ parts: [{ text: prompt }] }],
+  const response = await ai.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: [
+      { role: "system", content: buildPrompt(language) },
+      { role: "user", content: cleaned },
+    ],
   });
 
-  const translated = response.text?.trim();
-  if (!translated) throw new Error("Empty translation response from Gemini");
+  const translated = response.choices[0]?.message?.content?.trim();
+  if (!translated) throw new Error("Empty translation response from OpenAI");
 
   return restorePlaceholders(translated, placeholders);
 }
@@ -131,7 +123,7 @@ type FieldName = "question_text" | "solution_text" | "explanation_text" | "conte
  */
 export async function translateWithCache(
   supabase: AnySupabaseClient,
-  ai: InstanceType<typeof GoogleGenAI>,
+  ai: OpenAI,
   sourceTable: SourceTable,
   sourceId: number,
   fieldName: FieldName,
@@ -188,13 +180,14 @@ interface TranslationProgress {
 export async function translateCourseContent(
   supabaseUrl: string,
   supabaseKey: string,
-  geminiApiKey: string,
+  openaiApiKey: string,
   courseId: number,
   language: string,
-  onProgress?: (p: TranslationProgress) => void
+  onProgress?: (p: TranslationProgress) => void,
+  force = false
 ): Promise<{ translated: number; cached: number }> {
   const supabase = createClient(supabaseUrl, supabaseKey);
-  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+  const ai = new OpenAI({ apiKey: openaiApiKey });
 
   // Fetch all problems for this course
   const { data: problems } = await supabase
@@ -244,7 +237,7 @@ export async function translateCourseContent(
       .eq("language", language)
       .single();
 
-    if (existing && existing.source_hash === hash) {
+    if (!force && existing && existing.source_hash === hash) {
       cached++;
       continue;
     }

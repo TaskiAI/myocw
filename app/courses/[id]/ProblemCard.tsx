@@ -23,26 +23,10 @@ interface Props {
   onAttemptSubmitted: (problemId: number, attempt: UserProblemAttempt) => void;
 }
 
-type Phase = "answering" | "reviewing" | "graded";
+type Phase = "answering" | "graded";
 
-const GRADE_OPTIONS: { value: SelfGrade; label: string; color: string }[] = [
-  { value: "correct", label: "Correct", color: "bg-green-100 text-green-800 border-green-300" },
-  { value: "partially_correct", label: "Partially Correct", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  { value: "incorrect", label: "Incorrect", color: "bg-red-100 text-red-800 border-red-300" },
-  { value: "unsure", label: "Unsure", color: "bg-zinc-100 text-zinc-700 border-zinc-300" },
-];
 const MATH_CONTENT_CLASS =
   "prose prose-sm max-w-none text-zinc-800 whitespace-pre-wrap break-words overflow-x-auto dark:text-zinc-300";
-
-function gradeBadge(grade: SelfGrade) {
-  const option = GRADE_OPTIONS.find((o) => o.value === grade);
-  if (!option) return null;
-  return (
-    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${option.color}`}>
-      {option.label}
-    </span>
-  );
-}
 
 function parseExistingAnswers(
   answerText: string | undefined,
@@ -124,7 +108,6 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
     parseExistingAnswers(existingAttempt?.answer_text, isInteractive)
   );
 
-  const [currentGrade, setCurrentGrade] = useState<SelfGrade | null>(existingAttempt?.self_grade ?? null);
   const [submitting, setSubmitting] = useState(false);
 
   // MKE keyboard memory ref for toolbar targeting
@@ -183,7 +166,6 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
     setSubmitting(false);
 
     if (success) {
-      setCurrentGrade(grade);
       setPhase("graded");
       onAttemptSubmitted(problem.id, {
         id: 0,
@@ -202,7 +184,6 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
     } else {
       setAnswer("");
     }
-    setCurrentGrade(null);
     setPhase("answering");
   }
 
@@ -214,7 +195,11 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
           <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
             Problem {problem.problem_label}
           </h3>
-          {phase === "graded" && currentGrade && gradeBadge(currentGrade)}
+          {phase === "graded" && (
+            <span className="inline-flex items-center rounded-full border border-green-300 bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+              Completed
+            </span>
+          )}
         </div>
       </div>
 
@@ -276,45 +261,12 @@ export default function ProblemCard({ problem, existingAttempt, onAttemptSubmitt
 
             <button
               type="button"
-              onClick={() => setPhase("reviewing")}
-              disabled={!hasAnyAnswer}
+              onClick={() => handleGrade("unsure")}
+              disabled={!hasAnyAnswer || submitting}
               className="mt-3 rounded-lg bg-[#750014] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5a0010] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Show Solution
             </button>
-          </>
-        )}
-
-        {phase === "reviewing" && (
-          <>
-            {/* Classic answer display — only for non-interactive */}
-            {!isInteractive && (
-              <div className="mb-4">
-                <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">Your Answer</p>
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                  <MathText>{answer}</MathText>
-                </div>
-              </div>
-            )}
-
-            {/* Solution + explanation */}
-            {(problem.solution_text || !isInteractive) && <SolutionBlock problem={problem} />}
-
-            {/* Self-grade buttons */}
-            <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">How did you do?</p>
-            <div className="flex flex-wrap gap-2">
-              {GRADE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleGrade(option.value)}
-                  disabled={submitting}
-                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-50 ${option.color}`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
           </>
         )}
 

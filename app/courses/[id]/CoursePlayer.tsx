@@ -11,6 +11,7 @@ import {
   updateResourceTitle as updateCourseResourceTitle,
 } from "@/lib/actions/update-titles";
 import YouTubePlayer from "./YouTubePlayer";
+import ProblemSetView from "./ProblemSetView";
 import MarkdownContent from "@/app/components/MarkdownContent";
 
 interface Props {
@@ -945,6 +946,38 @@ export default function CoursePlayer({
               </div>
             )}
 
+            {/* Interactive problems for problem_set / exam resources in this section */}
+            {currentResources
+              .filter((r) => r.resource_type === "problem_set" || r.resource_type === "exam")
+              .map((resource) => {
+                const resourceProblems = (problemsByResource.get(resource.id) ?? []);
+                const hasInteractive = resourceProblems.some((p) =>
+                  /<(FillInBlank|MultipleChoice|FreeResponse)\s/.test(p.question_text)
+                );
+                if (!hasInteractive || resourceProblems.length === 0) return null;
+                const pdfResources = [resource].filter((r) => r.pdf_path);
+                return (
+                  <div key={resource.id} className="mt-6">
+                    <ProblemSetView
+                      problems={resourceProblems}
+                      pdfResources={pdfResources}
+                      courseId={courseId}
+                      canEdit={canEditContent}
+                      defaultProblemResourceId={resource.id}
+                      title={resource.title}
+                      onProblemAttempted={(problemId) => {
+                        setAttemptedProblemIds((prev) => {
+                          if (prev.has(problemId)) return prev;
+                          const next = new Set(prev);
+                          next.add(problemId);
+                          return next;
+                        });
+                      }}
+                    />
+                  </div>
+                );
+              })}
+
             {/* Prev / Next navigation (lectures only) */}
             <div className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-6 dark:border-zinc-700">
               <button
@@ -986,6 +1019,38 @@ export default function CoursePlayer({
               <h2 className="mb-4 text-xl font-semibold text-zinc-900">
                 {currentSection.title}
               </h2>
+
+              {/* Interactive problems for problem_set / exam resources */}
+              {currentResources
+                .filter((r) => r.resource_type === "problem_set" || r.resource_type === "exam")
+                .map((resource) => {
+                  const resourceProblems = (problemsByResource.get(resource.id) ?? []);
+                  const hasInteractive = resourceProblems.some((p) =>
+                    /<(FillInBlank|MultipleChoice|FreeResponse)\s/.test(p.question_text)
+                  );
+                  if (!hasInteractive || resourceProblems.length === 0) return null;
+                  const pdfResources = [resource].filter((r) => r.pdf_path);
+                  return (
+                    <div key={resource.id} className="mb-6">
+                      <ProblemSetView
+                        problems={resourceProblems}
+                        pdfResources={pdfResources}
+                        courseId={courseId}
+                        canEdit={canEditContent}
+                        defaultProblemResourceId={resource.id}
+                        title={resource.title}
+                        onProblemAttempted={(problemId) => {
+                          setAttemptedProblemIds((prev) => {
+                            if (prev.has(problemId)) return prev;
+                            const next = new Set(prev);
+                            next.add(problemId);
+                            return next;
+                          });
+                        }}
+                      />
+                    </div>
+                  );
+                })}
 
               {/* Rendered markdown content */}
               {markdownResources.length > 0 && (

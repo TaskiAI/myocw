@@ -15,7 +15,7 @@ import { translateCourseContent } from "../lib/translate";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY!;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 
 async function main() {
   const args = process.argv.slice(2);
@@ -33,29 +33,33 @@ async function main() {
   }
 
   const courseId = Number(courseArg);
+  const force = args.includes("--force");
   if (Number.isNaN(courseId)) {
     console.error(`Invalid course id: ${courseArg}`);
     process.exit(1);
   }
 
-  if (!SUPABASE_URL || !SUPABASE_KEY || !GEMINI_API_KEY) {
-    console.error("Missing env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, GEMINI_API_KEY");
+  if (!SUPABASE_URL || !SUPABASE_KEY || !OPENAI_API_KEY) {
+    console.error("Missing env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, OPENAI_API_KEY");
     process.exit(1);
   }
 
   console.log(`Translating course ${courseId} → ${language}`);
   console.log();
 
+  if (force) console.log("Force mode: re-translating all fields\n");
+
   const { translated, cached } = await translateCourseContent(
     SUPABASE_URL,
     SUPABASE_KEY,
-    GEMINI_API_KEY,
+    OPENAI_API_KEY,
     courseId,
     language,
     (p) => {
       const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
       process.stdout.write(`\r  [${pct}%] ${p.done}/${p.total}${p.current ? ` — ${p.current}` : ""}`);
-    }
+    },
+    force
   );
 
   console.log();

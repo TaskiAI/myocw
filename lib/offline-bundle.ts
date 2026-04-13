@@ -482,13 +482,7 @@ ${childResources.map((r) => renderResource(r, problemsByResource.get(r.id) ?? []
 </div>`;
   }
 
-  // Back link: if this is a child section, link up to the parent
-  const parent = section.parent_id
-    ? allSections.find((s) => s.id === section.parent_id)
-    : null;
-  const backLink = parent
-    ? `<a href="${parent.slug}.html">&larr; ${esc(parent.title)}</a>`
-    : `<a href="../index.html">&larr; ${esc(course.title)}</a>`;
+  const backLink = `<a href="../index.html">&larr; ${esc(course.title)}</a>`;
 
   const nav = `<div class="nav-strip">
 <div>${prevSection ? `&larr; <a href="${prevSection.slug}.html">${esc(prevSection.title)}</a>` : ""}</div>
@@ -551,8 +545,8 @@ ${childList}
 
   const body = `<h1>${esc(course.title)}</h1>
 <div class="course-meta">
-${depts ? `<span>&#127979; ${esc(depts)}</span>` : ""}
-${topics ? `<span>&#127991; ${esc(topics)}</span>` : ""}
+${depts ? `<span>${esc(depts)}</span>` : ""}
+${topics ? `<span>${esc(topics)}</span>` : ""}
 </div>
 <h2>Contents</h2>
 <ul class="section-list">

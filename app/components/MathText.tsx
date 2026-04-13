@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import "katex/dist/katex.min.css";
 import katex from "katex";
+import hljs from "highlight.js";
+import "highlight.js/styles/github.css";
+import "./hljs-dark.css";
 import { parseCompPlaceholderAt } from "@/app/components/interactive-problems/parse-tags";
 import type { ComponentSlot } from "@/app/components/interactive-problems/parse-tags";
 
@@ -454,6 +457,8 @@ function renderMarkdownBlocks(
     }
 
     if (isCodeFenceLine(line)) {
+      const langMatch = line.trim().match(/^```(\w+)/);
+      const lang = langMatch?.[1] ?? null;
       const codeLines: string[] = [];
       lineIndex += 1;
       while (lineIndex < lines.length && !isCodeFenceLine(lines[lineIndex])) {
@@ -462,12 +467,24 @@ function renderMarkdownBlocks(
       }
       if (lineIndex < lines.length) lineIndex += 1;
 
+      const raw = codeLines.join("\n");
+      let highlighted: string | null = null;
+      try {
+        highlighted = lang && hljs.getLanguage(lang)
+          ? hljs.highlight(raw, { language: lang }).value
+          : hljs.highlightAuto(raw).value;
+      } catch { /* fall back to plain text */ }
+
       blocks.push(
         <pre
           key={`${keyPrefix}-block-${blockIndex}`}
-          className="mb-3 overflow-x-auto rounded-lg bg-zinc-950 px-4 py-3 text-sm text-zinc-100 last:mb-0"
+          className="mb-3 overflow-x-auto rounded-lg bg-[#F9F9F9] border border-[#E5E5E5] dark:bg-zinc-800 dark:border-zinc-700 px-4 py-3 text-sm text-[#1A1A1A] dark:text-zinc-100 last:mb-0"
         >
-          <code>{codeLines.join("\n")}</code>
+          {highlighted ? (
+            <code className={`hljs${lang ? ` language-${lang}` : ""}`} dangerouslySetInnerHTML={{ __html: highlighted }} />
+          ) : (
+            <code>{raw}</code>
+          )}
         </pre>
       );
       blockIndex += 1;

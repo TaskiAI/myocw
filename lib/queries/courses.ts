@@ -26,7 +26,7 @@ export async function getCourses(filters: CourseFilters): Promise<CourseResult> 
   const to = from + PAGE_SIZE - 1;
 
   // Temporary: only surface downloaded course(s) to reduce clutter
-  const AVAILABLE_COURSE_IDS = [4794];
+  const AVAILABLE_COURSE_IDS = [4794, 5107];
 
   let query = supabase
     .from("courses")
@@ -87,7 +87,7 @@ export async function getFilterOptions(): Promise<FilterOptions> {
   const { data, error } = await supabase
     .from("courses")
     .select("departments, topics")
-    .in("id", [4794]);
+    .in("id", [4794, 5107]);
 
   if (error || !data) {
     console.error("Error fetching filter options:", error);
